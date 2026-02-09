@@ -13,7 +13,7 @@ Friday - Aim for all urgent tasks to be at least in the review stage
 
 Leader brings Agenda
 
-Format:
+**Meeting Format:**
 
 (1) Welcome and apologies
 
@@ -22,3 +22,5 @@ Format:
 (3) Progress Overview
 
 (4) Agree tasks and decide which are urgent
+
+(5) Any other business
