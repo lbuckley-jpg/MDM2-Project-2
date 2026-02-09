@@ -16,6 +16,9 @@ Leader brings Agenda
 Format:
 
 (1) Welcome and apologies
+
 (2) Recap of previous actions
+
 (3) Progress Overview
+
 (4) Agree tasks and decide whicha are urgent
