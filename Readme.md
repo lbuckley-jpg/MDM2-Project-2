@@ -21,4 +21,4 @@ Format:
 
 (3) Progress Overview
 
-(4) Agree tasks and decide whicha are urgent
+(4) Agree tasks and decide which are urgent
