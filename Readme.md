@@ -24,3 +24,11 @@ Leader brings Agenda
 (4) Agree tasks and decide which are urgent
 
 (5) Any other business
+
+**3 task types:**
+
+(1) Urgent: Needs doing this week
+
+(2) Important: Needs to be done by the end of the project but not nessesarily 
+
+(3) Optional: Ideas of tasks that may or may not be in the final project
