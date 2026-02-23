@@ -130,7 +130,7 @@ plt.ion()
 fig = plt.figure()
 ax = fig.add_subplot(111)
 ax.set_ylim([-1.0, 1.0])
-line1, = ax.plot(pos,'-o', ms=3)
+line1, = ax.plot(pos,'-o', ms=1)
 
 # Update the plot
 
