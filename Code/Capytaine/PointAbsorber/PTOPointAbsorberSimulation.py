@@ -50,7 +50,7 @@ def generate_buoy(radius= 5, mass= 500):
     return buoy
 
 
-def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_depth = inf, water_density = 1000, c_pto = 0.0 , k_pto = 0.0, visualize=True, save=True):
+def simulate(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_depth = inf, water_density = 1000, c_pto = 0.0 , k_pto = 0.0, visualize=True, save=True):
 
     '''Solve Boundary Element Method Problems'''
 
@@ -216,7 +216,7 @@ if __name__ == '__main__':
 
     omega = 2 * pi * args.wavefrequency # convert frequency to angular frequency
 
-    anim = setup_animation(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity, c_pto=args.cpto, k_pto = args.kpto, visualize = args.visualize, save= args.save)
+    anim = simulate(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity, c_pto=args.cpto, k_pto = args.kpto, visualize = args.visualize, save= args.save)
     anim.run(camera_position=(0, 80, 8), resolution=(800, 600))
     # anim.save("point_absorber_simulation_animation.ogv", camera_position=(0, 80, 8), resolution=(800, 600))
 
