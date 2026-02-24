@@ -34,3 +34,5 @@ python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensit
 #### Near-resonant sea, strong PTO (heave strongly damped / stiffened)
 
 python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 5.0e5 --kpto 1.0e6
+
+
