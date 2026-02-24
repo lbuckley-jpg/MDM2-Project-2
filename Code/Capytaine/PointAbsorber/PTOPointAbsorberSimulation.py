@@ -11,6 +11,10 @@ import xarray as xr
 import sys
 import argparse
 
+import os # import operating system for saving results to files
+import time # import time for data stamping the results. thought it would be useful
+
+
 cpt.set_logging('INFO')
 
 bem_solver = cpt.BEMSolver()
@@ -36,6 +40,9 @@ def generate_buoy(radius= 5, mass= 500):
         name="Point Absorber",
     )
 
+    buoy.radius = radius # store radius with the body object for later use (when logging for example)
+
+
     # Keep the same “artificially lower” inertia and hydrostatic stiffness pattern
     buoy.inertia_matrix = buoy.compute_rigid_body_inertia() # assumes density equal to that of fluid. I assume ot avoid accidental sinking
     buoy.hydrostatic_stiffness = buoy.immersed_part().compute_hydrostatic_stiffness()
@@ -43,7 +50,7 @@ def generate_buoy(radius= 5, mass= 500):
     return buoy
 
 
-def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_depth = inf, water_density = 1000, c_pto = 0.0 , k_pto = 0.0):
+def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_depth = inf, water_density = 1000, c_pto = 0.0 , k_pto = 0.0, visualize=True, save=True):
 
     '''Solve Boundary Element Method Problems'''
 
@@ -100,29 +107,73 @@ def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi,
         stiffness=K_pto_da,
         )
 
+    '''Compute analysis energy and power metrics'''
 
-    '''Compute Free Surface Elevation'''
+    rao_heave = rao.sel(omega=omega, radiating_dof="Heave")
 
-    # Compute the diffracted wave pattern
-    incoming_waves_elevation = airy_waves_free_surface_elevation(fs, diffraction_result)
-    diffraction_elevation = bem_solver.compute_free_surface_elevation(fs, diffraction_result)
+    X = rao_heave.data * wave_amplitude # calculate the complex heave displacement
 
-    # Compute the wave pattern radiated by the RAO
-    radiation_elevations_per_dof = {res.radiating_dof: bem_solver.compute_free_surface_elevation(fs, res) for res in radiation_results}
-    radiation_elevation = sum(rao.sel(omega=omega, radiating_dof=dof).data * radiation_elevations_per_dof[dof] for dof in body.dofs)
+    vel_amp = np.abs(1j * omega * X) # Velocity amplitude [m/s]
 
-    '''Set up Animation'''
+    P_heave = 0.5 * c_pto * vel_amp ** 2 # Calcluate the mean absorbed power in heave pto [W]
 
-    # Compute the motion of each face of the mesh for the animation
-    rao_faces_motion = sum(rao.sel(omega=omega, radiating_dof=dof).data * body.dofs[dof] for dof in body.dofs)
+    T = 2 * pi / omega # time period
 
-    # Set up scene
-    animation = Animation(loop_duration=2*pi/omega)
-    animation.add_body(body, faces_motion=wave_amplitude*rao_faces_motion)
-    animation.add_free_surface(fs, wave_amplitude * (incoming_waves_elevation + diffraction_elevation + radiation_elevation))
-    return animation
+    E_cycle = P_heave * T # energy equals power multiplied by time
+
+    if save:
+
+        '''Write results to file'''
+
+        logfile = 'results/pto_results.csv'
+        file_exists = os.path.isfile(logfile)
+
+        with open(logfile, 'a') as f:
+            if not file_exists:
+                # first time running create the file
+                f.write("timestamp, omega_rad_s, frequency_Hz,wave_amplitude_m,"
+                "c_pto_Ns_m,k_pto_N_m, buoy_mass_kg,buoy_radius_m,"
+                    "water_depth_m, water_density_kg_m3,"
+                    "P_absorbed_W, E_cycle_J\n")
+
+            freq = omega / (2 * np.pi)
+
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S") # format data into a readable string
+
+            # log the results as a new row in the file
+
+            
+
+            f.write(f"{timestamp},{omega}, {freq}, {wave_amplitude},"
+                f"{c_pto}, {k_pto}, {body.mass}, {body.radius},"  # radius hard-coded or parameter
+                f"{water_depth}, {water_density},"
+                f"{P_heave}, {E_cycle}\n")
+
+            print('Run logged succesfully')
 
 
+    if visualize:
+        '''Compute Free Surface Elevation'''
+
+        # Compute the diffracted wave pattern
+        incoming_waves_elevation = airy_waves_free_surface_elevation(fs, diffraction_result)
+        diffraction_elevation = bem_solver.compute_free_surface_elevation(fs, diffraction_result)
+
+        # Compute the wave pattern radiated by the RAO
+        radiation_elevations_per_dof = {res.radiating_dof: bem_solver.compute_free_surface_elevation(fs, res) for res in radiation_results}
+        radiation_elevation = sum(rao.sel(omega=omega, radiating_dof=dof).data * radiation_elevations_per_dof[dof] for dof in body.dofs)
+
+
+        '''Set up Animation'''
+
+        # Compute the motion of each face of the mesh for the animation
+        rao_faces_motion = sum(rao.sel(omega=omega, radiating_dof=dof).data * body.dofs[dof] for dof in body.dofs)
+
+        # Set up scene
+        animation = Animation(loop_duration=2*pi/omega)
+        animation.add_body(body, faces_motion=wave_amplitude*rao_faces_motion)
+        animation.add_free_surface(fs, wave_amplitude * (incoming_waves_elevation + diffraction_elevation + radiation_elevation))
+        return animation
 
 
 if __name__ == '__main__':
@@ -130,6 +181,11 @@ if __name__ == '__main__':
     # argument parser
 
     parser = argparse.ArgumentParser(description="Run Wave Simulation")
+
+    # script run parameters
+
+    parser.add_argument("--visualize", type=bool, required= False)
+    parser.add_argument("--save", type=bool, required= False)
 
     # parameters for the buoy
     parser.add_argument("--buoymass", type=float, required=False)
@@ -160,7 +216,7 @@ if __name__ == '__main__':
 
     omega = 2 * pi * args.wavefrequency # convert frequency to angular frequency
 
-    anim = setup_animation(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity, c_pto=args.cpto, k_pto = args.kpto)
+    anim = setup_animation(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity, c_pto=args.cpto, k_pto = args.kpto, visualize = args.visualize, save= args.save)
     anim.run(camera_position=(0, 80, 8), resolution=(800, 600))
     # anim.save("point_absorber_simulation_animation.ogv", camera_position=(0, 80, 8), resolution=(800, 600))
 

@@ -1,0 +1,2 @@
+timestamp, omega_rad_s, frequency_Hz,wave_amplitude_m,c_pto_Ns_m,k_pto_N_m, buoy_mass_kg,buoy_radius_m,water_depth_m, water_density_kg_m3,P_absorbed_W, E_cycle_J
+2026-02-24 19:12:15,1.2566370614359172, 0.2, 2.0,100000.0, 500000.0, 500.0, 5.0,100.0, 1000.0,22906.967180786363, 114534.83590393182

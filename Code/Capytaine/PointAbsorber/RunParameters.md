@@ -25,14 +25,16 @@ python PointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1
 
 #### Near-resonant sea, weak PTO (close to free motion, good baseline)
 
-python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 2.0e4 --kpto 0.0
+python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 2.0e4 --kpto 0.0 --visualize True --save True
+
 
 #### Near-resonant sea, moderate PTO (noticeable reduction in heave amplitude)
 
-python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 1.0e5 --kpto 5.0e5
+python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 1.0e5 --kpto 5.0e5 --visualize True --save True
+
 
 #### Near-resonant sea, strong PTO (heave strongly damped / stiffened)
 
-python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 5.0e5 --kpto 1.0e6
+python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 5.0e5 --kpto 1.0e6 --visualize True --save True
 
 
