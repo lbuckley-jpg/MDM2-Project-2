@@ -12,6 +12,9 @@ def generate_plots(csv_path="results/pto_results.csv", output_dir="results", c_p
     # Load data
     df = pd.read_csv(csv_path)
 
+    df = pd.read_csv(csv_path)
+    df.columns = df.columns.str.strip()  # remove leading/trailing spaces from every column name
+
     # Filter by PTO settings
     mask_pto = (df["c_pto_Ns_m"] == c_pto) & (df["k_pto_N_m"] == k_pto)
     df_pto = df[mask_pto]
@@ -77,4 +80,3 @@ if __name__ == "__main__":
 
     generate_plots(csv_path=args.csvpath, output_dir=args.outputdir, c_pto=args.cpto, k_pto=args.kpto, freq_target=args.freq)
 
-    

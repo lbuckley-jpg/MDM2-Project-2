@@ -131,10 +131,10 @@ def simulate(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_
         with open(logfile, 'a') as f:
             if not file_exists:
                 # first time running create the file
-                f.write("timestamp, omega_rad_s, frequency_Hz,wave_amplitude_m,"
-                "c_pto_Ns_m,k_pto_N_m, buoy_mass_kg,buoy_radius_m,"
-                    "water_depth_m, water_density_kg_m3,"
-                    "P_absorbed_W, E_cycle_J\n")
+                f.write("timestamp,omega_rad_s,frequency_Hz,wave_amplitude_m,"
+                "c_pto_Ns_m,k_pto_N_m,buoy_mass_kg,buoy_radius_m,"
+                    "water_depth_m,water_density_kg_m3,"
+                    "P_absorbed_W,E_cycle_J\n")
 
             freq = omega / (2 * np.pi)
 
