@@ -1,10 +1,12 @@
 from numpy import pi
 from numpy import inf
+import numpy as np
 import capytaine as cpt
 from capytaine.bem.airy_waves import airy_waves_free_surface_elevation
 from capytaine.ui.vtk import Animation
 
-# for 
+from capytaine.post_pro import rao as rao_fn # for PTO dampning simulation
+import xarray as xr
 
 import sys
 import argparse
@@ -41,7 +43,7 @@ def generate_buoy(radius= 5, mass= 500):
     return buoy
 
 
-def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_depth = inf, water_density = 1000):
+def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_depth = inf, water_density = 1000, c_pto = 0.0 , k_pto = 0.0):
 
     '''Solve Boundary Element Method Problems'''
 
@@ -51,7 +53,53 @@ def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi,
     diffraction_result = bem_solver.solve(diffraction_problem)
 
     dataset = cpt.assemble_dataset(radiation_results + [diffraction_result])
-    rao = cpt.post_pro.rao(dataset, wave_direction=wave_direction)
+
+    # rao = cpt.post_pro.rao(dataset, wave_direction=wave_direction) # (for without PTO)(now redundant)
+
+    '''Define PTO matrices in DOF space'''
+
+    dofs = list(body.dofs.keys())
+    ndof = len(dofs)
+
+    # initiate PTO damping matrix B_pto (same ordering as dofs)
+
+    B_pto = np.zeros((ndof, ndof))
+
+    # Find index of heave DOF
+
+    iheave = dofs.index("Heave")  
+
+    B_pto[iheave, iheave] = c_pto # add coefficient to dampning matrix
+
+    # Optional PTO stiffness matrix K_pto
+
+    K_pto = np.zeros((ndof, ndof))
+
+    if k_pto != 0.0:
+        K_pto[iheave, iheave] = k_pto
+
+
+    # Use the same DOF ordering and names as the hydrodynamic matrices
+
+    rad_dims = dataset["radiation_damping"].dims[1:]  # ('radiating_dof','influenced_dof')
+    rad_coords = {
+        rad_dims[0]: dataset["radiation_damping"].coords[rad_dims[0]],
+        rad_dims[1]: dataset["radiation_damping"].coords[rad_dims[1]],
+    }
+
+    B_pto_da = xr.DataArray(B_pto, coords=rad_coords, dims=rad_dims)
+    K_pto_da = xr.DataArray(K_pto, coords=rad_coords, dims=rad_dims)
+
+    print("Heave index:", iheave, "c_pto:", c_pto, "k_pto:", k_pto)
+    
+    
+    rao = cpt.post_pro.rao(
+        dataset,
+        wave_direction=wave_direction,
+        dissipation=B_pto_da,
+        stiffness=K_pto_da,
+        )
+
 
     '''Compute Free Surface Elevation'''
 
@@ -97,6 +145,11 @@ if __name__ == '__main__':
     parser.add_argument("--wavedirection", type=float, required=False)
     parser.add_argument("--waveamplitude", type=float, required=False)
 
+    # parameters for power take off
+
+    parser.add_argument("--cpto", type=float, required = False)
+    parser.add_argument("--kpto", type=float, required = False)
+
     # define args from parseer
 
     args = parser.parse_args()
@@ -107,7 +160,7 @@ if __name__ == '__main__':
 
     omega = 2 * pi * args.wavefrequency # convert frequency to angular frequency
 
-    anim = setup_animation(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity)
+    anim = setup_animation(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity, c_pto=args.cpto, k_pto = args.kpto)
     anim.run(camera_position=(0, 80, 8), resolution=(800, 600))
     # anim.save("point_absorber_simulation_animation.ogv", camera_position=(0, 80, 8), resolution=(800, 600))
 
