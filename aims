@@ -1,0 +1,8 @@
+OPTIMISING THE MOTION OF THE BUOY FOR MAXIMUM POWER
+
+ - simulate realistic waves
+ - latch control on realistic waves
+ - kalman filter implemented to measure wave with buoy
+ - simulating latch and kalman filter on sinusodal waves
+ - PTO dampening vs latching methods (mmore proportional dampening?)
+ - amplitude vs mass to show resonance
