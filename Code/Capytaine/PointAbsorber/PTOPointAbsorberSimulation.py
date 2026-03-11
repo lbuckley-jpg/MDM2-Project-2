@@ -15,7 +15,7 @@ import os # import operating system for saving results to files
 import time # import time for data stamping the results. thought it would be useful
 
 
-cpt.set_logging('INFO')
+cpt.set_logging('WARNING')
 
 bem_solver = cpt.BEMSolver()
 
@@ -25,7 +25,7 @@ adaptation for a buoy
 
 def generate_buoy(radius= 5, mass= 500):
     # Geometry: a sphere of radius 3 centered at the free surface (z = 0)
-    buoy_mesh = cpt.mesh_sphere(radius=radius, center=(0.0, 0.0, 0.0), resolution=(20, 20))
+    buoy_mesh = cpt.mesh_sphere(radius=radius, center=(0.0, 0.0, 0.0), resolution=(30, 30))
 
     # Use a consistent rotation center and center of mass
     rotation_center = (0.0, 0.0, 0.0)
@@ -121,7 +121,7 @@ def simulate(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_
 
     E_cycle = P_heave * T # energy equals power multiplied by time
 
-    if save:
+    if save == True:
 
         '''Write results to file'''
 
@@ -151,6 +151,9 @@ def simulate(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_
 
             print('Run logged succesfully')
 
+
+    if not visualize:
+        return float(P_heave), float(E_cycle)
 
     if visualize:
         '''Compute Free Surface Elevation'''
@@ -212,12 +215,12 @@ if __name__ == '__main__':
 
     body = generate_buoy(radius = args.buoyradius, mass = args.buoymass)
 
-    fs = cpt.FreeSurface(x_range=(-100, 75), y_range=(-100, 75), nx=100, ny=100)
+    fs = cpt.FreeSurface(x_range=(-50, 50), y_range=(-50, 50), nx=150, ny=150)
 
     omega = 2 * pi * args.wavefrequency # convert frequency to angular frequency
 
     anim = simulate(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity, c_pto=args.cpto, k_pto = args.kpto, visualize = args.visualize, save= args.save)
-    anim.run(camera_position=(0, 80, 8), resolution=(800, 600))
+    anim.run(camera_position=(0, 80, 8), resolution=(1280, 720))
     # anim.save("point_absorber_simulation_animation.ogv", camera_position=(0, 80, 8), resolution=(800, 600))
 
 
