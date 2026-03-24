@@ -1,7 +1,7 @@
 '''
-BEM solve for multiple wave frequencies, then convert to
-Cummins time-domain equation and integrate with solve_ivp.
-Irregular sea state described by JONSWAP spectrum.
+this code uses capytaine BEM to solve for multiple wave frequencies, then convert to
+Cummins time-domain equation and integrate with solve_ivp to find solutions.
+Irregular sea state described by JONSWAP spectrum. 
 '''
 
 from numpy import pi
@@ -20,7 +20,7 @@ cpt.set_logging('WARNING')
 bem_solver = cpt.BEMSolver()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+
 def jonswap_frequency_amplitudes(omega, delta_omega, Hs, Tp, gamma=3.3):
     """
     JONSWAP spectral density S(omega) [m^2 s / rad]
@@ -52,13 +52,13 @@ def jonswap_frequency_amplitudes(omega, delta_omega, Hs, Tp, gamma=3.3):
     return np.sqrt(2 * S * delta_omega)  # wave amplitude per component [m]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+
+
+
 def generate_frequencies(N, Tp):
     """
     Generate N evenly spaced frequencies centred around the peak frequency.
-
     Parameters
-    ----------
     N  : int    number of frequency components
     Tp : float  peak wave period [s]
     """
@@ -70,7 +70,6 @@ def generate_frequencies(N, Tp):
     return omega, delta_omega
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def generate_buoy(radius=5, mass=500):
     """Create a spherical buoy with all rigid-body DOFs."""
 
@@ -78,8 +77,12 @@ def generate_buoy(radius=5, mass=500):
                                       resolution=(30, 30))
     rotation_center = (0.0, 0.0, 0.0)
 
+    # adding a lid mesh that is a "internal lid at the water level" this is needed when solving on the immersed part
+    lid_mesh = buoy_mesh.generate_lid(z=0.0)
+
     buoy = cpt.FloatingBody(
-        mesh=buoy_mesh,
+        mesh = buoy_mesh,
+        lid_mesh = lid_mesh,
         dofs=cpt.rigid_body_dofs(rotation_center=rotation_center),
         center_of_mass=rotation_center,
         mass=mass,
@@ -94,7 +97,6 @@ def generate_buoy(radius=5, mass=500):
     return buoy
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 def simulate(body, omegas: np.ndarray, delta_omega: float,
              Hs=2.0, Tp=8.0,
              wave_direction=pi,
@@ -119,7 +121,8 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
     save          : bool         write results to CSV
     """
 
-    # ── 1. BEM frequency sweep ────────────────────────────────────────────
+    # 1. BEM frequency sweep 
+
     print("Running BEM frequency sweep...")
 
     radiation_problems = [
@@ -140,7 +143,8 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
 
     dataset = cpt.assemble_dataset(radiation_results + diffraction_results)
 
-    # ── 2. Extract Cummins components from dataset ────────────────────────
+    # 2. Extract Cummins components from dataset 
+
     print("Extracting Cummins components...")
 
     # Added mass A33(omega)  [N s^2/m]
@@ -163,7 +167,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
     K33 = float(body.hydrostatic_stiffness.sel(
                     influenced_dof='Heave', radiating_dof='Heave'))
 
-    # ── 3. Build retardation kernel Kr(t) ────────────────────────────────
+    # 3. Build retardation kernel Kr(t)
     # Kr decays to zero; 60 s is typically sufficient
     t_Kr = np.linspace(0, 60, 1000)
 
@@ -172,7 +176,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
         for ti in t_Kr
     ])
 
-    # ── 4. JONSWAP wave amplitudes and F_ex(t) ───────────────────────────
+    # 4. JONSWAP wave amplitudes and F_ex(t) 
     wave_amps = jonswap_frequency_amplitudes(omegas, delta_omega, Hs, Tp)
 
     F_amps   = np.abs(F_ex_complex) * wave_amps   # [N]
@@ -182,7 +186,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
         """Superpose all frequency components into a single time-domain force."""
         return np.sum(F_amps * np.cos(omegas * t + F_phases))
 
-    # ── 5. Build Cummins RHS for solve_ivp ───────────────────────────────
+    # 5. Build Cummins RHS for solve_ivp
     history = {"t": [], "v": []}
 
     def rhs(t, state):
@@ -195,9 +199,9 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
         t_hist = np.array(history['t'])
         v_hist = np.array(history['v'])
 
-        # Numerical convolution integral  ∫ Kr(t-τ) v(τ) dτ
+        # Numerical convolution integral 
         if len(t_hist) > 1:
-            t_shifted = t - t_hist                          # t - tau >= 0
+            t_shifted = t - t_hist   # t - tau >= 0
             Kr_vals   = np.interp(t_shifted, t_Kr, Kr,
                                   left=Kr[0], right=0.0)
             memory = np.trapezoid(Kr_vals * v_hist, t_hist)
@@ -214,7 +218,8 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
 
         return [v, v_dot]   # [dx/dt, dv/dt]
 
-    # ── 6. Time integration ───────────────────────────────────────────────
+    # 6. Time integration
+
     print("Integrating Cummins equation...")
 
     t_span = (0.0, 400.0)
@@ -223,10 +228,10 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
     solution = solve_ivp(
         rhs,
         t_span=t_span,
-        y0=[0.0, 0.0],       # start at rest
+        y0=[0.0, 0.0], # start at rest
         t_eval=t_eval,
         method='RK45',
-        max_step=0.05,       # keep history ordered; prevents RK step rejection issues
+        max_step=0.05, # keep history ordered; prevents RK step rejection issues
         rtol=1e-4,
         atol=1e-6,
     )
@@ -237,7 +242,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
     x_t = solution.y[0]     # heave displacement [m]
     v_t = solution.y[1]     # heave velocity     [m/s]
 
-    # ── 7. Power calculation ──────────────────────────────────────────────
+    # 7. Power calculation 
     steady = t_eval > 100.0  # discard transient startup
 
     P_inst = c_pto * v_t**2
@@ -245,7 +250,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
 
     print(f"Mean absorbed power: {P_mean:.1f} W")
 
-    # ── 8. Save results ───────────────────────────────────────────────────
+    # 8. Save results 
     if save:
         os.makedirs('results', exist_ok=True)
         logfile    = 'results/cummins_results.csv'
@@ -267,7 +272,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
             )
         print("Results logged successfully.")
 
-    # ── 9. Plot ───────────────────────────────────────────────────────────
+    # 9. Plot
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 
     axes[0].plot(t_eval, x_t, color='steelblue', linewidth=0.8)
@@ -302,7 +307,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
     return solution, P_mean
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+
 if __name__ == '__main__':
 
     # Sea state
@@ -330,3 +335,8 @@ if __name__ == '__main__':
         k_pto          = 0.0,
         save           = True,
     )
+
+
+
+
+
