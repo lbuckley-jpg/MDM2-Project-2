@@ -4,7 +4,6 @@
 
 ### For PointAbsorberSimulation.py
 
-*Example runs (5 m radius buoy, mass 500 kg, deep-ish water; units: m, s, kg). Wave frequency is in Hz.*
 
 #### Calm sea, long waves (small motions, mostly for sanity checks)
 
@@ -14,27 +13,15 @@ python PointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1
 
 python PointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0
 
-#### Higher frequency sea (shorter waves, smaller heave response)
-
-python PointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.30 --wavedirection 3.14159 --waveamplitude 2.0
-
 
 ### For PTOPointAborberSimulation.py
-
-*Same sea states as above, but with PTO in heave only. PTO values are order-of-magnitude comparable to hydrostatic stiffness and radiation damping for a 5 m sphere; adjust as needed when doing optimization.*
-
-#### Near-resonant sea, weak PTO (close to free motion, good baseline)
-
-python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 2.0e4 --kpto 0.0 --visualize True --save True
-
 
 #### Near-resonant sea, moderate PTO (noticeable reduction in heave amplitude)
 
 python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 1.0e5 --kpto 5.0e5 --visualize True --save True
 
 
-#### Near-resonant sea, strong PTO (heave strongly damped / stiffened)
+### For Run.py
 
-python PTOPointAbsorberSimulation.py --buoymass 500 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavefrequency 0.20 --wavedirection 3.14159 --waveamplitude 2.0 --cpto 5.0e5 --kpto 1.0e6 --visualize True --save True
-
+python Run.py --tspan 180 --nfreqcomponents 40 --peakperiod 8.0 --significantwaveheight 2.0 --buoymass 5000 --buoyradius 5 --waterdensity 1000 --wavedirection 3.14159 --cpto 1.0e4 --kpto 0.0
 

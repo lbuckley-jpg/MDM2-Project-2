@@ -202,8 +202,7 @@ def simulate(body, omegas: np.ndarray, delta_omega: float,
         # Numerical convolution integral 
         if len(t_hist) > 1:
             t_shifted = t - t_hist   # t - tau >= 0
-            Kr_vals   = np.interp(t_shifted, t_Kr, Kr,
-                                  left=Kr[0], right=0.0)
+            Kr_vals   = np.interp(t_shifted, t_Kr, Kr, left=Kr[0], right=0.0)
             memory = np.trapezoid(Kr_vals * v_hist, t_hist)
         else:
             memory = 0.0
