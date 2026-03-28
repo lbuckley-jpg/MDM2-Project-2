@@ -27,7 +27,7 @@ def generate_frequencies(N=40, Tp=8.0):
 
 '''------------generate jonswap amplitudes-----------'''
 
-def jonswap_frequency_amplitudes(omega, delta_omega, Hs = 2.0, Tp=8.0 , gamma=3.3):
+def jonswap_frequency_amplitudes(omega, delta_omega, Hs = 2.0, Tp=12.0 , gamma=3.3):
     """
     JONSWAP spectral density S(omega) [m^2 s / rad]
     Returns wave amplitude for each frequency component.
@@ -116,7 +116,7 @@ def solve_with_capytaine(body, omegas, wave_direction=np.pi, water_depth=np.inf,
 
 '''---------get cummins components from capytaine data----------'''
 
-def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitudes, omegas):
+def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitudes, omegas, seed):
     print('Initialising function: get_cummins_components')
 
     # get the added masses for heave motion
@@ -131,16 +131,21 @@ def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitu
     # get the complex (frequency domain) excitation force
     F_ex_complex = (capytaine_dataset['Froude_Krylov_force'] + capytaine_dataset['diffraction_force']).sel(influenced_dof='Heave', wave_direction=wave_direction).values
 
+    # add random phases to wave components
+    rng = np.random.default_rng(seed)
+    epsilon = rng.uniform(0, 2 * np.pi, size=omegas.shape)
+    hydro_phase = np.angle(F_ex_complex)
+    total_phase = hydro_phase + epsilon
+
     # convert to a function of time
     def F_ex_time(t):
-        return np.sum(np.abs(F_ex_complex) * wave_amplitudes * np.cos(omegas * t + np.angle(F_ex_complex)))
+        return np.sum(np.abs(F_ex_complex) * wave_amplitudes * np.cos(omegas * t + total_phase))
 
     # derivative for latching controls
 
     def F_ex_time_dot(t):
         amplitudes = np.abs(F_ex_complex) * wave_amplitudes
-        phases = np.angle(F_ex_complex)
-        return np.sum(-amplitudes * omegas * np.sin(omegas * t + phases))
+        return np.sum(-amplitudes * omegas * np.sin(omegas * t + total_phase))
 
     # get the hydrostatic stiffness coefficient for heave
     K_heave = float(body.hydrostatic_stiffness.sel(influenced_dof='Heave', radiating_dof='Heave'))
@@ -531,7 +536,7 @@ def plot_history(history_latch, history_no_latch, f):
     plt.title('Displacement Time graph for point absorber')
     plt.plot(history_latch['t'], history_latch['x'], label='with latching')
     plt.plot(history_no_latch['t'], history_no_latch['x'], label='without latching')
-    plt.plot(history_no_latch['t'], np.array(history_no_latch['F_ex']) / 1e5 , ls='--', label='excitation force')
+    plt.plot(history_no_latch['t'], np.array(history_no_latch['F_ex']) / (np.max(np.array(history_no_latch['F_ex'])) / (max(history_no_latch['x']))), ls='--', label='scaled excitation force')
     plt.legend()
     plt.xlabel('Time (s)')
     plt.ylabel('Displacement (m) / Force (N)/100000')

@@ -27,6 +27,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--save", type=bool, required = False)
     parser.add_argument("--tspan", type=int, required=True)
+    parser.add_argument("--seed", type=int, required=True)
 
     # parameters for frequency generation
     parser.add_argument("--nfreqcomponents", type=int, required=False)
@@ -56,17 +57,21 @@ if __name__ == '__main__':
 
     '''---------------run code------------------'''
 
+    #T0 = 12.0                 # wave period [s]
+    #omega0 = 2 * np.pi / T0   # rad/s
+    #a0 = 2.0                  # wave amplitude [m]
+
     # create buoy
     buoy = generate_buoy(radius=args.buoyradius, mass=args.buoymass)
 
     # generate frequencies
-
+    
     omegas, delta_omega = generate_frequencies(N=args.nfreqcomponents, Tp=args.peakperiod)
-
+    #omegas = np.array([omega0])
     # generate amplitudes for each frequency
 
     wave_amplitudes = jonswap_frequency_amplitudes(omegas, delta_omega, Hs= args.significantwaveheight, Tp= args.peakperiod)
-    # wave_amplitudes = np.ones(len(omegas)) * 2
+    #wave_amplitudes = np.array([a0])
 
     # solve with capytaine
 
@@ -74,7 +79,7 @@ if __name__ == '__main__':
 
     # get cummins stuff
 
-    A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot = get_cummins_components(body=buoy, capytaine_dataset=capytaine_dataset, wave_direction=args.wavedirection, wave_amplitudes=wave_amplitudes, omegas=omegas)
+    A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot = get_cummins_components(body=buoy, capytaine_dataset=capytaine_dataset, wave_direction=args.wavedirection, wave_amplitudes=wave_amplitudes, omegas=omegas, seed=args.seed)
 
     # solve cummins equation
 
