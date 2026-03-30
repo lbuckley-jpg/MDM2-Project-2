@@ -158,7 +158,6 @@ def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitu
     return A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot
 
 
-
 '''--------solve cummins equation---------'''
 
 def solve_cummins_equation_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span):
@@ -509,7 +508,7 @@ def solve_cummins_stepwise_no_latch(body, A_heave_inf, t_kernel, kernel, K_heave
         history['x'].append(x_now)
         history['v'].append(v_now)
         history['F_ex'].append(F_ex_time(t_now))
-
+        history['c_pto'].append(C_pto)
     return history
 
 
