@@ -1,0 +1,116 @@
+import argparse
+import numpy as np
+import capytaine as cpt
+
+cpt.set_logging("WARNING")
+
+from Functions import (
+    generate_frequencies,
+    jonswap_frequency_amplitudes,
+    generate_buoy,
+    solve_with_capytaine,
+    get_cummins_components,
+    solve_cummins_stepwise_no_latch,
+    calc_power_absorbed,
+)
+
+from AdaptiveKalman import (
+    solve_cummins_stepwise_adaptive_kalman,
+    calculate_variable_damping_power,
+    plot_results,
+)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--tspan", type=int, required=True)
+    parser.add_argument("--seed", type=int, required=True)
+
+    parser.add_argument("--nfreqcomponents", type=int, default=40)
+    parser.add_argument("--peakperiod", type=float, default=12.0)
+    parser.add_argument("--significantwaveheight", type=float, default=2.0)
+
+    parser.add_argument("--buoymass", type=float, default=5000)
+    parser.add_argument("--buoyradius", type=float, default=5)
+
+    parser.add_argument("--waterdensity", type=float, default=1000)
+    parser.add_argument("--waterdepth", type=float, default=np.inf)
+
+    parser.add_argument("--wavedirection", type=float, default=3.14159)
+
+    parser.add_argument("--cpto", type=float, default=1e5)
+    parser.add_argument("--kpto", type=float, default=0.0)
+
+    args = parser.parse_args()
+
+    # BUOY
+    buoy = generate_buoy(radius=args.buoyradius, mass=args.buoymass)
+
+    # WAVES
+    omegas, delta_omega = generate_frequencies(args.nfreqcomponents, args.peakperiod)
+    wave_amplitudes = jonswap_frequency_amplitudes(
+        omegas,
+        delta_omega,
+        Hs=args.significantwaveheight,
+        Tp=args.peakperiod,
+    )
+
+    # HYDRODYNAMICS
+    dataset = solve_with_capytaine(
+        body=buoy,
+        omegas=omegas,
+        wave_direction=args.wavedirection,
+        water_depth=args.waterdepth,
+        water_density=args.waterdensity,
+    )
+
+    A_inf, t_kernel, kernel, K_heave, F_ex, F_ex_dot = get_cummins_components(
+        body=buoy,
+        capytaine_dataset=dataset,
+        wave_direction=args.wavedirection,
+        wave_amplitudes=wave_amplitudes,
+        omegas=omegas,
+        seed=args.seed,
+    )
+
+    # CONSTANT CASE
+    history_const = solve_cummins_stepwise_no_latch(
+        body=buoy,
+        A_heave_inf=A_inf,
+        t_kernel=t_kernel,
+        kernel=kernel,
+        K_heave=K_heave,
+        F_ex_time=F_ex,
+        F_ex_time_dot=F_ex_dot,
+        C_pto=args.cpto,
+        K_pto=args.kpto,
+        t_span=[0, args.tspan],
+        dt=0.05,
+    )
+
+    p_const, p_mean_const = calc_power_absorbed(history_const, args.cpto)
+
+    # ADAPTIVE CASE
+    history_adapt = solve_cummins_stepwise_adaptive_kalman(
+        body=buoy,
+        A_heave_inf=A_inf,
+        t_kernel=t_kernel,
+        kernel=kernel,
+        K_heave=K_heave,
+        F_ex_time=F_ex,
+        C_pto_base=args.cpto,
+        K_pto=args.kpto,
+        t_span=[0, args.tspan],
+        dt=0.05,
+        seed=args.seed,
+    )
+
+    p_adapt, p_mean_adapt = calculate_variable_damping_power(history_adapt)
+
+    print("\nRESULTS:")
+    print(f"Constant power: {p_mean_const:.2f} W")
+    print(f"Adaptive power: {p_mean_adapt:.2f} W")
+    print(f"Improvement: {100*(p_mean_adapt - p_mean_const)/p_mean_const:.2f}%")
+
+    plot_results(history_const, history_adapt, p_const, p_adapt)
