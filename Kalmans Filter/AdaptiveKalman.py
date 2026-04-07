@@ -1,3 +1,11 @@
+"""
+Adaptive PTO damping driven by a simple linear Kalman state estimate.
+
+The simulation advances a heave oscillator with linear damping, observes noisy
+position, estimates [position, velocity] with a Kalman filter, and sets the
+next step's PTO damping from the estimated speed. Plotting helpers smooth power
+traces and save comparison figures.
+"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,6 +13,7 @@ from scipy.integrate import solve_ivp
 
 
 def _clip(value, lower, upper):
+    # Clamp a scalar to bounds so adaptive gains cannot push damping out of range.
     return max(lower, min(upper, value))
 
 
@@ -13,21 +22,27 @@ def moving_average(y, window=15):
     if window <= 1 or len(y) < window:
         return y.copy()
     kernel = np.ones(window) / window
+
     y_pad = np.pad(y, (window // 2, window - 1 - window // 2), mode="edge")
+
     return np.convolve(y_pad, kernel, mode="valid")
 
 
 class SimpleKalmanFilter:
+    # Discrete-time linear Kalman filter for state x = [position, velocity]^T
+    # with position-only measurements z = x_position + noise.
+
     def __init__(self):
-        self.x = np.zeros((2, 1))
-        self.P = np.eye(2)
-        self.H = np.array([[1.0, 0.0]])
+        self.x = np.zeros((2, 1))  # prior mean of state
+        self.P = np.eye(2)  # prior covariance
+        self.H = np.array([[1.0, 0.0]])  # observation model: z = H x
 
     def predict(self, A, B, u, Q):
-        self.x = A @ self.x + B * float(u)
-        self.P = A @ self.P @ A.T + Q
+        self.x = A @ self.x + B * float(u) # 
+        self.P = A @ self.P @ A.T + Q #  
 
     def update(self, z, R):
+        # Measurement update: fuse noisy position z with innovation y, Kalman gain K, R = measurement variance.
         z = np.array([[float(z)]])
         y = z - self.H @ self.x
         S = self.H @ self.P @ self.H.T + R
@@ -37,6 +52,8 @@ class SimpleKalmanFilter:
 
 
 def calculate_variable_damping_power(history, cutoff=50):
+    # Absorbed power proxy P = c_pto * v^2 using simulation histories; skip first `cutoff`
+    # samples (often transient / burn-in) and return both the array and its mean.
     v = np.array(history["v"][cutoff:])
     c = np.array(history["c_pto"][cutoff:])
     p = c * v**2
@@ -98,6 +115,7 @@ def solve_cummins_stepwise_adaptive_kalman(
 
         x_meas = x_now + rng.normal(0, measurement_std)
 
+        
         A = np.array([[1, dt], [0, 1]])
         B = np.array([[0], [dt / M]])
 
@@ -107,6 +125,7 @@ def solve_cummins_stepwise_adaptive_kalman(
         x_est = kf.x[0, 0]
         v_est = kf.x[1, 0]
 
+        # Higher |v_est| increases damping above the base value, capped by cpto_min / cpto_max.
         c_pto = _clip(C_pto_base + adaptive_gain * abs(v_est), cpto_min, cpto_max)
 
         history["t"].append(t_now)
@@ -123,7 +142,7 @@ def plot_results(history_const, history_adapt, p_const, p_adapt, output_dir="res
     import os
     os.makedirs(output_dir, exist_ok=True)
 
-    # POWER
+    # Smoothed instantaneous absorbed power: constant vs adaptive damping (time axis trimmed from index 50, consistent with transient cutoff elsewhere in this module).
     plt.figure(figsize=(10, 5))
     plt.plot(history_const["t"][50:], moving_average(p_const), label="Constant damping", linewidth=2)
     plt.plot(history_adapt["t"][50:], moving_average(p_adapt), label="Adaptive damping", linewidth=2)
@@ -135,7 +154,7 @@ def plot_results(history_const, history_adapt, p_const, p_adapt, output_dir="res
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "power.png"), dpi=300)
 
-    # KALMAN
+    # True simulation displacement vs Kalman estimate from noisy measurements.
     plt.figure(figsize=(10, 5))
     plt.plot(history_adapt["t"], history_adapt["x"], label="True displacement", linewidth=2)
     plt.plot(history_adapt["t"], history_adapt["x_est"], "--", label="Estimated displacement", linewidth=2)
@@ -147,7 +166,7 @@ def plot_results(history_const, history_adapt, p_const, p_adapt, output_dir="res
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "kalman.png"), dpi=300)
 
-    # DAMPING
+    # Time history of the clipped adaptive PTO damping coefficient.
     plt.figure(figsize=(10, 5))
     plt.plot(history_adapt["t"], history_adapt["c_pto"], linewidth=2)
     plt.title("Adaptive PTO Damping Over Time", fontsize=14)
@@ -159,4 +178,3 @@ def plot_results(history_const, history_adapt, p_const, p_adapt, output_dir="res
 
     if show:
         plt.show()
-

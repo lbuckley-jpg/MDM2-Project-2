@@ -157,7 +157,6 @@ def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitu
 
     return A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot
 
-
 '''--------solve cummins equation---------'''
 
 def solve_cummins_equation_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span):
@@ -466,8 +465,8 @@ def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F
 
 
 '''--------solve cummins equation stepwise (no latch)---------'''
-
 def solve_cummins_stepwise_no_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
+
 
     print('Initialising function: solve_cummins_stepwise_no_latch')
 
@@ -511,6 +510,79 @@ def solve_cummins_stepwise_no_latch(body, A_heave_inf, t_kernel, kernel, K_heave
         history['c_pto'].append(C_pto)
     return history
 
+'''-------------------rk4 as solve_ivp is not great for cummins equation as the rhs is not self contained needs past states---------------------------'''
+
+def rk4_step(rhs,t, x, v, h):
+    dx1, dv1 = rhs(t, x, v)
+    dx2, dv2 = rhs(t + 0.5*h, x + 0.5*h*dx1, v + 0.5*h*dv1)
+    dx3, dv3 = rhs(t + 0.5*h, x + 0.5*h*dx2, v + 0.5*h*dv2)
+    dx4, dv4 = rhs(t + h, x + h*dx3, v + h*dv3)
+    x_new = x + (h/6.0) * (dx1 + 2*dx2 + 2*dx3 + dx4)
+    v_new = v + (h/6.0) * (dv1 + 2*dv2 + 2*dv3 + dv4)
+    return x_new, v_new
+
+
+def solve_cummins_stepwise_no_latch_rl(rk4_solver, body, A_heave_inf, t_kernel, kernel,
+                                        K_heave, F_ex_time, C_pto, K_pto, step_size,
+                                        dt=0.05, history=None):
+
+    hist_t = history['t']
+    hist_v = history['v']
+    hist_x = history['x']
+
+    t_now  = hist_t[-1]
+    t_final = t_now + step_size
+    x_now  = float(hist_x[-1])
+    v_now  = float(hist_v[-1])
+
+    effective_mass = body.mass + A_heave_inf
+    inv_mass = 1.0 / effective_mass
+    t_kernel = np.asarray(t_kernel)
+    kernel   = np.asarray(kernel)
+    kernel_max_tau = t_kernel[-1]
+    K_total = K_heave + K_pto
+
+    def compute_memory(t):
+        idx0 = np.searchsorted(hist_t, t - kernel_max_tau)
+        t_memory = hist_t[idx0:]
+        v_memory = hist_v[idx0:]
+        tau    = t - t_memory
+        k_vals = np.interp(tau, t_kernel, kernel, left=kernel[0], right=0.0)
+        return float(np.trapezoid(k_vals * v_memory, t_memory))
+
+    def rhs(t, x, v):
+        dvdt = (F_ex_time(t) - compute_memory(t) - C_pto * v - K_total * x) * inv_mass
+        dxdt = v
+        return dxdt, dvdt
+
+    # FIX 1: accumulate into lists, convert to arrays once at end
+
+    # NEW - fixed
+    new_t, new_v, new_x = [], [], []
+
+    while t_now < t_final - 1e-10:
+        h = min(dt, t_final - t_now)
+        x_now, v_now = rk4_solver(rhs, t_now, x_now, v_now, h)
+        t_now += h
+        new_t.append(t_now)
+        new_v.append(v_now)
+        new_x.append(x_now)
+
+    hist_t = np.concatenate([hist_t, new_t])
+    hist_v = np.concatenate([hist_v, new_v])
+    hist_x = np.concatenate([hist_x, new_x])
+
+    # FIX 4: append F_ex for each new timestep
+    history_out = {'t': hist_t, 'x': hist_x, 'v': hist_v}
+    if history is not None and 'F_ex' in history:
+        f_ex_list = list(history['F_ex'])
+        for t in new_t[1:]:
+            f_ex_list.append(float(F_ex_time(t)))
+        history_out['F_ex'] = f_ex_list
+    if history is not None and 'c_pto' in history:
+        history_out['c_pto'] = list(history['c_pto'])
+
+    return history_out
 
 '''--------------analyse data--------------'''
 
