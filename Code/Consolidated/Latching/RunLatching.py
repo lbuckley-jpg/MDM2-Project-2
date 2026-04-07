@@ -107,9 +107,9 @@ if __name__ == '__main__':
 
     # calculate power 
 
-    p_inst_latch, p_mean_latch = calc_power_absorbed(history_latch, args.cpto)
+    p_inst_latch, p_mean_latch = calc_power_absorbed(history_latch)
 
-    p_inst_no_latch, p_mean_no_latch = calc_power_absorbed(history_no_latch, args.cpto)
+    p_inst_no_latch, p_mean_no_latch = calc_power_absorbed(history_no_latch)
 
     # plot the history's
 

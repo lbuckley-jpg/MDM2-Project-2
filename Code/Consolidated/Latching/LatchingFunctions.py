@@ -12,7 +12,13 @@ def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F
     M_eff = body.mass + A_heave_inf
 
     # full solution output stored in dictionary
-    history = {'t': [0.0], 'x': [0.0], 'v': [0.0], 'F_ex': [F_ex_time(0.0)]}
+    history = {
+        't': [0.0],
+        'x': [0.0],
+        'v': [0.0],
+        'F_ex': [F_ex_time(0.0)],
+        'c_pto': [C_pto]
+    }
 
     t_final = t_span[1]
     t_now = 0.0
@@ -49,6 +55,7 @@ def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F
         history['x'].append(x_val)
         history['v'].append(v_val)
         history['F_ex'].append(F_ex_time(t_val))
+        history['c_pto'].append(C_pto)
 
     # function that sweeps a time interval looking for the unlatch criteria and then returns the root where F = 0
     def find_unlatch_time(t_start, t_end, x_latched): # this function calculates the time when the force is maximal and opposite to the latched position

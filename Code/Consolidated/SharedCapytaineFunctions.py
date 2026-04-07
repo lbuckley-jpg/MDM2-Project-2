@@ -166,7 +166,13 @@ def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_hea
     t_final = t_span[1]
     M_eff = body.mass + A_heave_inf
 
-    history = {'t': [0.0], 'x': [0.0], 'v': [0.0], 'F_ex': [F_ex_time(0.0)]}
+    history = {
+        't': [0.0],
+        'x': [0.0],
+        'v': [0.0],
+        'F_ex': [F_ex_time(0.0)],
+        'c_pto': [C_pto]
+    }
 
     t_final = t_span[1]
     t_now = 0.0
