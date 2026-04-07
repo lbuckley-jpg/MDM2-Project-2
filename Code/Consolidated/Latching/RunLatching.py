@@ -8,13 +8,31 @@ import capytaine as cpt
 import argparse
 import os
 import time
+import sys
 
 cpt.set_logging('WARNING')
 
 bem_solver = cpt.BEMSolver()
 
 
-from Functions import generate_frequencies, jonswap_frequency_amplitudes, generate_buoy, plot_history, solve_with_capytaine, get_cummins_components, solve_cummins_stepwise_latch, solve_cummins_stepwise_no_latch, calc_power_absorbed, plot_power
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from SharedCapytaineFunctions import (
+    generate_frequencies,
+    jonswap_frequency_amplitudes,
+    generate_buoy,
+    solve_with_capytaine,
+    get_cummins_components,
+    solve_cummins_stepwise_no_control,
+    calc_power_absorbed)
+
+
+from LatchingFunctions import (
+    solve_cummins_stepwise_latch,
+    plot_history,
+    plot_power
+)
+
 
 
 if __name__ == '__main__':
@@ -85,7 +103,7 @@ if __name__ == '__main__':
 
     history_latch = solve_cummins_stepwise_latch(buoy, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto=args.cpto, K_pto=args.kpto, t_span=[0,args.tspan])
 
-    history_no_latch = solve_cummins_stepwise_no_latch(buoy, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto=args.cpto, K_pto=args.kpto, t_span=[0,args.tspan])
+    history_no_latch = solve_cummins_stepwise_no_control(buoy, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto=args.cpto, K_pto=args.kpto, t_span=[0,args.tspan])
 
     # calculate power 
 
