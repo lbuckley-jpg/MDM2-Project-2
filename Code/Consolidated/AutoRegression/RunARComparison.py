@@ -29,25 +29,30 @@ New flags
 import argparse
 import numpy as np
 import capytaine as cpt
+import sys
+import os
 
 cpt.set_logging("WARNING")
 
-from Functions import (
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+
+from SharedCapytaineFunctions import (
     generate_frequencies,
     jonswap_frequency_amplitudes,
     generate_buoy,
     solve_with_capytaine,
     get_cummins_components,
-    solve_cummins_stepwise_no_latch,
+    solve_cummins_stepwise_no_control,
     calc_power_absorbed,
 )
 
-from AdaptiveKalman import (
+from Kalman.KalmanFunctions import (
     solve_cummins_stepwise_adaptive_kalman,
     calculate_variable_damping_power as kalman_power,
 )
 
-from AdaptiveAR import (
+from AdaptiveARFunctions import (
     solve_cummins_stepwise_adaptive_ar,
     calculate_variable_damping_power as ar_power,
     plot_results_ar,
@@ -126,7 +131,7 @@ if __name__ == "__main__":
 
     # ── 1. Constant damping ────────────────────────────────────────────────────
     print("\n── Constant damping ──")
-    history_const = solve_cummins_stepwise_no_latch(
+    history_const = solve_cummins_stepwise_no_control(
         body         = buoy,
         A_heave_inf  = A_inf,
         t_kernel     = t_kernel,
@@ -139,7 +144,7 @@ if __name__ == "__main__":
         t_span       = [0, args.tspan],
         dt           = 0.05,
     )
-    p_const, p_mean_const = calc_power_absorbed(history_const, args.cpto)
+    p_const, p_mean_const = calc_power_absorbed(history_const)
 
     # ── 2. Kalman adaptive ─────────────────────────────────────────────────────
     print("\n── Kalman adaptive ──")
