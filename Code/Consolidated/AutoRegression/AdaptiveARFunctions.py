@@ -369,7 +369,6 @@ class ARPredictor:
 # Horizon length for x_est. At dt=0.05 s, 40 steps = 2.0 s ahead.
 N_HORIZON = 40
 
-
 def calculate_variable_damping_power(history, cutoff=50):
     v = np.array(history["v"][cutoff:])
     c = np.array(history["c_pto"][cutoff:])
