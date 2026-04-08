@@ -1,5 +1,5 @@
 # Note: this draft stil contains ai for controls 2 and 3
-#     - in process of rewriting method more cleanly onto new doc
+#     - rewritten method is shown more cleanly onto new doc
 
 import numpy as np
 import matplotlib.pyplot as plt
