@@ -19,39 +19,63 @@
 
 import numpy as np
 import scipy.linalg as la # for matrix solving etx
-import cvxpy as xp # module for optimisation
+import cvxpy as cp # module for optimisation
+
+'''dummy parameters for now will use capytaine'''
+dt = 0.1            # Sampling time (T_mpc)
+N = 20              # Prediction Horizon (how many steps to look ahead)
+m = 1000            # Buoy mass
+a_w = 500           # Added mass
+k = 5000            # Hydrostatic stiffness
+M = m + a_w
+u_max = 1500        # Maximum PTO force (Physical constraint)
 
 
 
-'''--------------build_prediction_matrices-------'''
+'''--------------solve_mpc---------------'''
 
-# create a discrete state space version of system that predicts the future state of buoy.
 
-# parameters are:
-# Ad matrix for [cummins dynamics input memory]
-# Np is the time horizon the number of time step into the future to optimise to
-# Bd is matrix which relates the change in control force to change in system
-# Fd is matrix which relates the change in excitation force to change in system
+# Discrete-time State-Space (x = [pos, vel])
+# Derived from: x[k+1] = Ad*x[k] + Bd*u[k]
+Ad = np.array([[1.0, dt], [-k/M*dt, 1.0]])
+Bd = np.array([[0], [dt/M]])
 
-# the result is we get a linear equation that predicts state updates discretely
+# solves for the optimal controls in time horizon
+def solve_mpc(x_current, wave_force_pred, N):
 
-def build_prediction_matrices(Ad, Bd, Fd, Cd, Np):
+    # creat two matrices that describe the system. 
+    # X describes the state of the system (vertical position, vertical velocity, radiation states)
+    # U contains the control 
+
+    x = cp.Variable((2, N + 1)) # dimensions are displacement and velocity for N + 1 timesteps
+    u = cp.Variable((1, N))  # control froce for N timesteps
+
+    # instantiate cost of objective function as 0
+    cost = 0
+
+    # instantiate the constraints which is the current state
+    constraints = [x[:, 0] == x_current]
+
+    # iterate throught the timer horizon 
+
+    for t in range(N):
+
+        # calculate the cost update at each timestep
+        cost += - u[:,t] @ x[1,t] + 0.1 * cp.square(u[:, t]) # - force * veloctiy + 0.1 * velocity squared # added regularisation to avoid to larger force
+
+        # update the system dynamics constraints for the next time step
+        constraints += [x[:, t+1] == Ad @ x[:, t] + Bd @ u[:, t] + Bd @ [wave_force_pred[t]]]
+
+        # update the physical contraints such as force limits
+
+        constraints += [cp.abs(u[:,t]) <= u_max]
+
+    # define the optimisation problem
+    problem = cp.Problem(cp.Minimize(cost), constraints)
+
+    # solve the problem
+    problem.solve(solver=cp.ECOS)
+
+    return u.value[0,0]
     
-    nx = Ad.shape[0]
-    ny = Cd.shape[0]
 
-    P = []
-    WB = np.zeros((ny*Np, Np))
-    WF = np.zeros((ny*Np, Np))
-
-    for i in range(1, Np+1):
-        Ai = np.linalg.matrix_power(Ad, i)
-        P.append(Cd @ Ai)
-
-        for j in range(i):
-            Aij = np.linalg.matrix_power(Ad, i-j-1)
-            WB[(i-1)*ny:i*ny, j] = (Cd @ Aij @ Bd).flatten()
-            WF[(i-1)*ny:i*ny, j] = (Cd @ Aij @ Fd).flatten()
-
-    P = np.vstack(P)
-    return P, WB, WF
