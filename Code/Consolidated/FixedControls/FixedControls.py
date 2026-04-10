@@ -24,8 +24,8 @@ K = rho * g * A         # hydrostatic stiffness [N/m]
 M = K / omega**2      # resonant mass [kg]
 
 
-# =======================
-# FIXED CONTROL 1: linear pto
+# =====================================
+# FIXED CONTROL 2: linear pto
 # vary b_pto with velocity of buoy
 # 
 # This is calculated analytically
@@ -33,7 +33,7 @@ M = K / omega**2      # resonant mass [kg]
 # P_pto = (M a^2 ω^3)/8b
 #
 # Find mass such that power maximised
-# =======================
+# =====================================
 
 def P_linear_resonant(M, a, omega, b, b_pto):
     return (M * a**2 * omega**3 * b_pto) / (2 * (b + b_pto)**2)
@@ -69,8 +69,16 @@ ax1.grid(True, alpha=0.4)
 plt.tight_layout()
 
 
-
-
+# =====================================
+# FIXED CONTROL 3: fixed damping coefficient
+# 
+# 
+# This is calculated analytically
+# F_pto = b_pto * Mω * ∂ζ/∂t
+# P_pto = (M a^2 ω^3)/8b
+#
+# Find mass such that power maximised
+# =====================================
 
 
 
