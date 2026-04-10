@@ -8,7 +8,7 @@ g = 9.81
 rho = 1025  # seawater density 
 a = 0.5     # wave amp. (avg)  [m]
 
-b = 0.1     # intrinsic dampening
+b = 0.3     # intrinsic dampening
             # - can be estimated using hydrodynamic models
 
 # buoy dimensions
@@ -23,50 +23,32 @@ omega = 2 * np.pi * freq
 K = rho * g * A         # hydrostatic stiffness [N/m]
 M = K / omega**2      # resonant mass [kg]
 
-# find m0 given target freq
-def m_param(M_val, omega):
-    return (M_val * omega**2) / K
-
-m0 = m_param(M, omega)
-
-print(f"Hydrostatic stiffness K      : {K:.2f} N/m")
-print(f"Resonant buoy mass M         : {M:.2f} kg")
-print(f"Normalised parameter m       : {m0:.6f}\n")
-
-# find b_pto for max power Eq.(C10)
-def b_pto_unconstrained_opt(m):
-    output = np.sqrt(((1 - m) / m)**2 + b**2)
-    return output
 
 # =======================
 # FIXED CONTROL 1: linear pto
 # vary b_pto with velocity of buoy
+# 
+# This is calculated analytically
 # F_pto = b_pto * Mω * ∂ζ/∂t
+# P_pto = (M a^2 ω^3)/8b
 #
 # Find mass such that power maximised
 # =======================
 
-def P_linear(b_pto, M_val, omega, m):
-    """
-    Average PTO power for velocity-proportional (linear) damping
-    Eq. C7 from Coastal Wiki
-    """
-    num   = a**2 * omega**3 * M_val * b_pto
-    denom = 2 * ((1 - m)**2 + m**2 * (b + b_pto)**2)
-    return num / denom
+def P_linear_resonant(M, a, omega, b, b_pto):
+    return (M * a**2 * omega**3 * b_pto) / (2 * (b + b_pto)**2)
 
-
-b_pto_arr     = np.linspace(0.001, 1.5, 3000)
-P_lin_arr     = P_linear(b_pto_arr, M, omega, m0)
+b_pto_arr = np.linspace(0.001, 1.5, 3000)
+P_lin_arr = P_linear_resonant(M, a, omega, b, b_pto_arr)
 
 b_pto_opt_num = b_pto_arr[np.argmax(P_lin_arr)]
 P_lin_max_num = P_lin_arr.max()
-b_pto_opt_ana = float(b_pto_unconstrained_opt(m0))     # ≈ b
-P_lin_max_ana = M * a**2 * omega**3 / (8 * b)        # Eq. C8
+P_lin_max_ana = M * a**2 * omega**3 / (8 * b)   # eq. C8
 
+# printed and plotted with AI
 print("Control 1: Linear Optimal PTO")
 print(f"  Optimal b_pto (numerical)  : {b_pto_opt_num:.5f}")
-print(f"  Optimal b_pto (analytical) : {b_pto_opt_ana:.5f}  (≈ b = {b})")
+print(f"  Optimal b_pto (analytical) : {b:.5f}  (≈ b = {b})")
 print(f"  P_max  (numerical)         : {P_lin_max_num:.5f} W")
 print(f"  P_max  (Eq. C8 analytical) : {P_lin_max_ana:.5f} W\n")
 
@@ -85,4 +67,11 @@ ax1.set_title(
 ax1.legend()
 ax1.grid(True, alpha=0.4)
 plt.tight_layout()
+
+
+
+
+
+
+
 plt.show()
