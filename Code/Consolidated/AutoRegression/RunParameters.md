@@ -1,15 +1,1 @@
-python "Code/Consolidated/AutoRegression/RunARComparison.py" `
-  --tspan 300 `
-  --seed 42 `
-  --nfreqcomponents 40 `
-  --peakperiod 12.0 `
-  --significantwaveheight 2.0 `
-  --buoymass 5000 `
-  --buoyradius 5 `
-  --waterdensity 1000 `
-  --waterdepth inf `
-  --wavedirection 3.14159 `
-  --cpto 1e5 `
-  --kpto 0.0 `
-  --arorder 10 `
-  --arlambda 0.97
+python "Code/Consolidated/AutoRegression/RunARComparison.py" --tspan 300 --seed 42 --nfreqcomponents 40 --peakperiod 12.0 --significantwaveheight 2.0 --buoymass 5000 --buoyradius 5 --waterdensity 1000 --waterdepth inf --wavedirection 3.14159 --cpto 1e5 --kpto 0.0 --arorder 10 --arlambda 0.97
