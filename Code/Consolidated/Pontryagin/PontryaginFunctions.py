@@ -78,24 +78,38 @@ def fit_prony_coefficients(t_grid, omega, radiation_damping, mass, added_mass_in
         method="L-BFGS-B",
         bounds=bounds,
     )
+    lower_bounds = np.array([b[0] for b in bounds], dtype=float)
+    upper_bounds = np.array([b[1] for b in bounds], dtype=float)
     start = stable_fit.x if stable_fit.success else initial.flatten()
 
-    try:
-        print("running bounded curve_fit for prony coefficients")
-        lower_bounds = np.array([b[0] for b in bounds], dtype=float)
-        upper_bounds = np.array([b[1] for b in bounds], dtype=float)
-        popt, _ = curve_fit(
-            prony_model,
-            t_grid,
-            K_data,
-            p0=start,
-            bounds=(lower_bounds, upper_bounds),
-            maxfev=20000,
-        )
-        coeffs = popt.reshape(-1, 4)
-    except Exception:
-        print("curve_fit failed, using stable initial fit")
+    # L-BFGS-B already minimizes sum((K_data - prony_model)^2) with the same bounds.
+    # A second bounded curve_fit -> least_squares(TRF) on ~1000 points repeats that
+    # at huge cost (many Jacobian SVDs). With bounds, pass max_nfev (not maxfev) to least_squares.
+    if stable_fit.success:
+        print("L-BFGS-B converged; using result (skipping curve_fit)")
         coeffs = start.reshape(-1, 4)
+    else:
+        print("L-BFGS-B did not converge; bounded least_squares on subsampled grid")
+        n_fit = min(250, len(t_grid))
+        idx = np.unique(np.linspace(0, len(t_grid) - 1, n_fit, dtype=int))
+        t_fit = t_grid[idx]
+        K_fit = K_data[idx]
+        try:
+            popt, _ = curve_fit(
+                prony_model,
+                t_fit,
+                K_fit,
+                p0=start,
+                bounds=(lower_bounds, upper_bounds),
+                method="dogbox",
+                max_nfev=2000,
+                ftol=1e-8,
+                xtol=1e-8,
+            )
+            coeffs = popt.reshape(-1, 4)
+        except Exception:
+            print("curve_fit failed, using L-BFGS-B / initial vector")
+            coeffs = start.reshape(-1, 4)
 
     print("finished: fit_prony_coefficients")
     return coeffs, K_data
