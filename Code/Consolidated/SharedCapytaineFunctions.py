@@ -160,7 +160,6 @@ def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitu
 
 def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
 
-
     print('Initialising function: solve_cummins_stepwise_no_control')
 
     t_final = t_span[1]
@@ -191,8 +190,6 @@ def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_hea
             memory = np.trapezoid(k_vals * v_arr, t_arr)
         dvdt = (F_ex_time(t) - memory - C_pto * v - (K_heave + K_pto) * x) / M_eff
         return [v, dvdt]
-
-    print('simulating (stepwise without latching)')
 
     while t_now < t_final - 1e-10:
         t_next = min(t_now + dt, t_final)

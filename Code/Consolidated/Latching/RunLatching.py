@@ -24,7 +24,8 @@ from SharedCapytaineFunctions import (
     solve_with_capytaine,
     get_cummins_components,
     solve_cummins_stepwise_no_control,
-    calc_power_absorbed)
+    calc_power_absorbed,
+    )
 
 
 from LatchingFunctions import (
