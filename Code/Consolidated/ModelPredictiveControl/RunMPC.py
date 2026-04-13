@@ -150,6 +150,6 @@ if __name__ == '__main__':
     p_inst_no_control, p_mean_no_control = calc_power_absorbed(history_no_control)
 
     plot_history(history_mpc, history_no_control)
-    plot_power(history_mpc, history_no_control, p_inst_mpc, p_inst_no_control)
+    plot_power(history_mpc, history_no_control)
 
 
