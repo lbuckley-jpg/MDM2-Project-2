@@ -16,12 +16,25 @@ R = 2
 A = np.pi * R**2
 
 # target wave freq
-freq = 0.12     # [hz]
+freq = 0.2    # [hz]
 omega = 2 * np.pi * freq
 
 # find resonant mass (m=1)
 K = rho * g * A         # hydrostatic stiffness [N/m]
 M = K / omega**2      # resonant mass [kg]
+
+# =====================================
+# FIXED CONTROL 1: fixed f_pto
+# vary b_pto with velocity of buoy
+# 
+# This is calculated analytically
+# F_pto = b_pto * Mω * ∂ζ/∂t
+# P_pto = (M a^2 ω^3)/8b
+#
+# Find mass such that power maximised
+# =====================================
+
+
 
 
 # =====================================
@@ -70,8 +83,7 @@ plt.tight_layout()
 
 
 # =====================================
-# FIXED CONTROL 3: fixed damping coefficient
-# 
+# FIXED CONTROL 3: coulomb damping
 # 
 # This is calculated analytically
 # F_pto = b_pto * Mω * ∂ζ/∂t
