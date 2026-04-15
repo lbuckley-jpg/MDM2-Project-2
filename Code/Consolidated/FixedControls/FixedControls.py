@@ -24,7 +24,7 @@ K = rho * g * A         # hydrostatic stiffness [N/m]
 M = K / omega**2      # resonant mass [kg]
 
 # =====================================
-# FIXED CONTROL 1: fixed f_pto
+# FIXED CONTROL 1: Coulomb damping
 # vary b_pto with velocity of buoy
 # 
 # This is calculated analytically
@@ -83,7 +83,7 @@ plt.tight_layout()
 
 
 # =====================================
-# FIXED CONTROL 3: coulomb damping
+# FIXED CONTROL 3: Coulomb damping
 # 
 # This is calculated analytically
 # F_pto = b_pto * Mω * ∂ζ/∂t
@@ -91,6 +91,7 @@ plt.tight_layout()
 #
 # Find mass such that power maximised
 # =====================================
+
 
 
 
