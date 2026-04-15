@@ -7,49 +7,51 @@ g   = 9.81
 a   = 0.5
 
 # Damping parameter (radiation + drag only, no PTO)
-b = 0.3
+b = 0.3    # THIS NEEDS REFERENCE!!
 
 # Target wave frequency
-f_target = 0.25
+f_range = np.linspace(0.1, 0.5)
+f_target = 0.25 #REF NEEDED HERE
+omega_range = 2 * np.pi * f_range
 omega_t  = 2 * np.pi * f_target
 
 # Buoy geometry
-R = 2.0
+R = 2.0     # free var
 A = np.pi * R**2
 
 # Resonant m from d/dm[(1-m)^2 + b^2*m^2] = 0  →  m = 1/(1+b^2)
 m_peak       = 1.0 / (1.0 + b**2)
-M_analytical = (rho * g * A * m_peak) / omega_t**2
 
-# Numerical sweep to verify
-M_array = np.linspace(100, M_analytical * 3, 5000)
-m_array = (M_array * omega_t**2) / (rho * g * A)
+# find resonant masses
+M_range = (rho * g * A * m_peak) / omega_range**2
+M_target = (rho * g * A * m_peak) / omega_t**2
 
-# Amplitude with b_pto = 0
-y_amp = a / np.sqrt((1 - m_array)**2 + (b * m_array)**2)
+print(f'Optimal Mass for wave freq {f_target} hz : {M_target:.2f} kg')
 
-peak_idx = np.argmax(y_amp)
-M_peak   = M_array[peak_idx]
-y_peak   = y_amp[peak_idx]
+# Plot optimal mass against wave freq
+fig, ax = plt.subplots()
+ax.plot(f_range, M_range, color='blue')
 
-print(f"Optimal M (analytical) : {M_analytical:.2f} kg")
-print(f"Optimal M (numerical)  : {M_peak:.2f} kg")
+ax.set_xlim(f_range.min(), f_range.max())
+ax.set_ylim(M_range.min(), M_range.max())
+x_left = ax.get_xlim()[0]
+y_bottom = ax.get_ylim()[0]
 
-# Plot
-fig, ax = plt.subplots(figsize=(9, 5))
-ax.plot(M_array, y_amp, color="steelblue", lw=2, label="Heave amplitude (no PTO)")
-ax.axvline(M_analytical, ls="--", color="crimson", lw=1.8,
-           label=f"Optimal M = {M_analytical:.1f} kg")
-ax.scatter([M_peak], [y_peak], color="crimson", zorder=5, s=60,
-           label=f"Peak = {y_peak:.3f} m  at  M = {M_peak:.1f} kg")
+ax.vlines(f_target, ymin=y_bottom, ymax=M_target, colors='crimson', linestyles='--')
+ax.hlines(M_target, xmin=x_left, xmax=f_target, colors='crimson', linestyles='--')
 
-ax.set_xlabel("Buoy mass  M  [kg]")
-ax.set_ylabel("Heave amplitude [m]")
+ax.scatter([f_target], [M_target], color='crimson', s=60, 
+           label=
+                f'f = {f_target} hz\n'
+                f'M = {M_target:.1f} kg')
+
+ax.set_xlabel('Resonant Buoy Mass M [kg]')
+ax.set_ylabel('Wave Frequency [hz]')
 ax.set_title(
-    f"Heave amplitude at f = {f_target} Hz vs buoy mass (no PTO)\n"
-    f"R = {R} m,  b = {b},  m_peak = {m_peak:.3f}"
+    f'Resonant mass vs Wave frequency with no PTO\n'
+    f'Radius = {R} m,  Damping parameter b = {b},'
 )
 ax.legend()
-ax.grid(True, alpha=0.4)
+#ax.grid(True, alpha=0.4)
 plt.tight_layout()
 plt.show()
