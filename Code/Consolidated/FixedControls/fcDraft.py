@@ -12,7 +12,7 @@ b = 0.3             # intrinsic dampening - FIND REAL VALUE?
                         # dimensionless radiation + drag damping
 
 # target wave freq
-f_target = 0.12
+f_target = 0.25
 omega_t  = 2 * np.pi * f_target
 
 # buoy dimensions
