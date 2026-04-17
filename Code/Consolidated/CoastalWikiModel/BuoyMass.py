@@ -45,11 +45,11 @@ ax.scatter([f_target], [M_target], color='crimson', s=60,
                 f'f = {f_target} hz\n'
                 f'M = {M_target:.1f} kg')
 
-ax.set_xlabel('Resonant Buoy Mass M [kg]')
-ax.set_ylabel('Wave Frequency [hz]')
+ax.set_xlabel('Wave Frequency [hz]')
+ax.set_ylabel('Resonant Buoy Mass M [kg]')
 ax.set_title(
-    f'Resonant mass vs Wave frequency\n'
-    f'Radius = {R} m,  Damping parameter b = {b},'
+    f'Wave Frequency vs Resonant Mass\n'
+    f'Radius = {R} m,  Natural damping parameter b = {b},'
 )
 ax.legend()
 #ax.grid(True, alpha=0.4)
