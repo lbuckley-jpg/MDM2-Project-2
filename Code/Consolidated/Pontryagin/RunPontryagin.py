@@ -105,6 +105,7 @@ if __name__ == "__main__":
         max_iter=args.maxiter,
         n_terms=args.nprony,
     )
+    
     print("solving no-latch baseline")
     history_no = solve_no_latch(
         omega=omegas,

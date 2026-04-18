@@ -47,6 +47,8 @@ def discrete_matrices_for_mpc_from_prony(prony_coeffs, mass, added_mass_inf, C_p
     for r in range(n_terms): # add the memory kernel prony approximation terms 
         # subscript r for real part and subscript i for imaginary part
         alpha_r, beta_r, alpha_i, beta_i = prony_coeffs[r]
+        # alpha_i = 0.0
+        # beta_i = 0.0
         ir = 2 + 2 * r
         ii = ir + 1
         Ac[1, ir] = -1.0 / M
@@ -58,9 +60,11 @@ def discrete_matrices_for_mpc_from_prony(prony_coeffs, mass, added_mass_inf, C_p
         Ac[ii, ii] = beta_r
 
     Ad = la.expm(Ac * float(dt_sample)) 
+    #eigvals = np.linalg.eigvals(Ad) # checking that all the eigen values have magnitude less that 1 the requirement for the system to be stable
+    #print("Max |eig|:", np.max(np.abs(eigvals)))
+    #print("Eigenvalues:", eigvals)
     # Bd = Ac^{-1} (Ad - I) Bc  for zero-order hold on force input
-    rhs = (Ad - np.eye(n_state)) @ Bc
-    Bd = la.solve(Ac, rhs)
+    Bd = np.linalg.solve(Ac, (Ad - np.eye(n_state))) @ Bc
 
     return Ad, Bd
 
@@ -82,11 +86,11 @@ def solve_mpc_linearized(x_current, wave_force_pred, u_prev_traj, v_prev_traj, N
         power_lin = u_prev_traj[t] * x[1, t] + v_prev_traj[t] * u[0, t] - (u_prev_traj[t] * v_prev_traj[t])
         
         # Add a small quadratic penalty on 'u' and 'x' for numerical stability (regularization)
-        cost += -power_lin + 0.1 * cp.square(u[0, t]) + 10.0 * cp.square(x[0, t])
+        cost += power_lin + 0.1 * cp.square(u[0, t]) + 10.0 * cp.square(x[0, t])
 
         f_t = float(wave_force_pred[t])
         constraints += [x[:, t + 1] == Ad @ x[:, t] + (u[0, t] + f_t) * np.asarray(Bd).ravel()]
-        constraints += [cp.abs(u[0, t]) <= u_limit]
+        constraints += [0 <= u[0, t] <= u_limit]
 
     problem = cp.Problem(cp.Minimize(cost), constraints)
     problem.solve(solver=cp.CLARABEL)
@@ -176,6 +180,7 @@ def solve_cummins_stepwise_mpc(buoy, A_heave_inf, prony_coeffs, t_kernel, kernel
         # solve MPC for optimal control U
         u_opt, u_traj, v_traj = solve_mpc_linearized(x_shadow, f_pred, u_prev_traj, v_prev_traj, n_horizon, Ad, Bd, u_limit=20000)
 
+        t_now = t + dt
         # a rhs function that is used for solve ivp
         def rhs(t, state):
             x, v = state
@@ -186,7 +191,10 @@ def solve_cummins_stepwise_mpc(buoy, A_heave_inf, prony_coeffs, t_kernel, kernel
             else:
                 tau = t - t_arr
                 k_vals = np.interp(tau, t_kernel, kernel, left=kernel[0], right=0.0)
-                memory = np.trapezoid(k_vals * v_arr, t_arr)
+                tau = tau[::-1]
+                v_arr = v_arr[::-1]
+                k_vals = k_vals[::-1]
+                memory = np.trapezoid(k_vals * v_arr, tau)
 
             # no kpto and cpto replaced as raw control force
             dvdt = (F_ex_time(t) - memory - K_heave * x + u_opt) / M_eff
@@ -200,6 +208,8 @@ def solve_cummins_stepwise_mpc(buoy, A_heave_inf, prony_coeffs, t_kernel, kernel
         # then advance the hidden Prony states using the Ad matrix.
         # Step the whole shadow vector forward by dt
         x_shadow = Ad @ x_shadow + Bd.flatten() * (u_opt + F_ex_time(t_now))
+        x_shadow[0] = sol.y[0, -1]
+        x_shadow[1] = sol.y[1, -1]
 
         # F. Log Results
         history['t'].append(t_now)
@@ -209,7 +219,6 @@ def solve_cummins_stepwise_mpc(buoy, A_heave_inf, prony_coeffs, t_kernel, kernel
 
         u_prev_traj = np.append(u_traj[1:], u_traj[-1])
         v_prev_traj = np.append(v_traj[1:], v_traj[-1])
-
 
     return history
 

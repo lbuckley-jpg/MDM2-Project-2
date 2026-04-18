@@ -142,8 +142,6 @@ def simulate(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_
 
             # log the results as a new row in the file
 
-            
-
             f.write(f"{timestamp},{omega}, {freq}, {wave_amplitude},"
                 f"{c_pto}, {k_pto}, {body.mass}, {body.radius},"  # radius hard-coded or parameter
                 f"{water_depth}, {water_density},"
@@ -173,7 +171,7 @@ def simulate(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi, water_
         rao_faces_motion = sum(rao.sel(omega=omega, radiating_dof=dof).data * body.dofs[dof] for dof in body.dofs)
 
         # Set up scene
-        animation = Animation(loop_duration=2*pi/omega)
+        animation = Animation(loop_duration=16*pi/omega)
         animation.add_body(body, faces_motion=wave_amplitude*rao_faces_motion)
         animation.add_free_surface(fs, wave_amplitude * (incoming_waves_elevation + diffraction_elevation + radiation_elevation))
         return animation

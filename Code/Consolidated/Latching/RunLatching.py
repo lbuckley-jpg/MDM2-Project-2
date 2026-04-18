@@ -111,15 +111,12 @@ if __name__ == '__main__':
     p_inst_latch, p_mean_latch = calc_power_absorbed(history_latch)
 
     p_inst_no_latch, p_mean_no_latch = calc_power_absorbed(history_no_latch)
-
-    # plot the history's
-
+    
     plot_history(history_latch, history_no_latch, F_ex_time)
-
-    # plot power
+    plt.savefig('history.png', dpi=150, bbox_inches='tight')   # ← add
 
     plot_power(history_latch, history_no_latch, p_inst_latch, p_inst_no_latch)
-
+    plt.savefig('power.png', dpi=150, bbox_inches='tight')     # ← add
     # print power
 
     print(f'Average power absorption without latching: {p_mean_no_latch}')

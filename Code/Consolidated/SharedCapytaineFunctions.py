@@ -155,8 +155,62 @@ def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitu
 
     kernel = np.array([(2 / np.pi) * np.trapezoid(B_heave * np.cos(omegas * ti), omegas) for ti in t_kernel]) # solve for each time and frequence
 
-    return A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot
+    return A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, B_heave
 
+
+import numpy as np
+from scipy.stats import linregress
+
+# def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitudes, omegas, seed):
+#     print('Initialising function: get_cummins_components')
+
+#     # get frequency-dependent added mass and damping
+#     A_heave = capytaine_dataset['added_mass'].sel(radiating_dof='Heave', influenced_dof='Heave').values
+#     B_heave = capytaine_dataset['radiation_damping'].sel(radiating_dof='Heave', influenced_dof='Heave').values
+
+#     # xcALCULATE A_inf via Linear Regression
+#     # We use the high-frequency tail where A(w) is linear relative to 1/w^2
+#     # Typically, the last 10-20% of the frequency range is used.
+#     tail_idx = int(len(omegas) * 0.8) 
+#     w_tail = omegas[tail_idx:]
+#     A_tail = A_heave[tail_idx:]
+    
+#     # Filter out any zero frequencies to avoid division errors
+#     valid = w_tail > 0
+#     inv_w_sq = 1.0 / (w_tail[valid]**2)
+    
+#     # Perform linear regression: A(w) = A_inf + C * (1/w^2)
+#     # slope = C, intercept = A_inf
+#     slope, A_heave_inf, r_value, p_value, std_err = linregress(inv_w_sq, A_tail[valid])
+    
+#     print(f"Calculated A_inf: {A_heave_inf:.4f} (R-squared: {r_value**2:.4f})")
+
+#     # Excitation Force setup
+#     F_ex_complex = (capytaine_dataset['Froude_Krylov_force'] + capytaine_dataset['diffraction_force']).sel(influenced_dof='Heave', wave_direction=wave_direction).values
+
+#     rng = np.random.default_rng(seed)
+#     epsilon = rng.uniform(0, 2 * np.pi, size=omegas.shape)
+#     hydro_phase = np.angle(F_ex_complex)
+#     total_phase = hydro_phase + epsilon
+#     amplitudes = np.abs(F_ex_complex) * wave_amplitudes
+
+#     def F_ex_time(t):
+#         return np.sum(amplitudes * np.cos(omegas * t + total_phase))
+
+#     def F_ex_time_dot(t):
+#         return np.sum(-amplitudes * omegas * np.sin(omegas * t + total_phase))
+
+#     # 4. Hydrostatic Stiffness
+#     K_heave = float(body.hydrostatic_stiffness.sel(influenced_dof='Heave', radiating_dof='Heave'))
+
+#     # 5. Memory Kernel Calculation (Optimized with Matrix Multiply)
+#     t_kernel = np.linspace(0, 60, 1000)
+#     # Pre-compute the cosine matrix for speed: shape (len(t_kernel), len(omegas))
+#     cos_matrix = np.cos(np.outer(t_kernel, omegas))
+#     # Integrate using trapezoidal rule across the frequency axis
+#     kernel = (2 / np.pi) * np.trapezoid(B_heave * cos_matrix, omegas, axis=1)
+
+#     return A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot
 
 def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
 
@@ -188,7 +242,78 @@ def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_hea
             tau = t - t_arr
             k_vals = np.interp(tau, t_kernel, kernel, left=kernel[0], right=0.0)
             memory = np.trapezoid(k_vals * v_arr, t_arr)
+            
+            # Correct for current step to prevent lagging damping in high-accel events
+            if t > t_arr[-1]:
+                k_t = kernel[0]
+                k_prev = k_vals[-1]
+                memory += 0.5 * (k_prev * v_arr[-1] + k_t * v) * (t - t_arr[-1])
         dvdt = (F_ex_time(t) - memory - C_pto * v - (K_heave + K_pto) * x) / M_eff
+        return [v, dvdt]
+
+    while t_now < t_final - 1e-10:
+        t_next = min(t_now + dt, t_final)
+        sol = solve_ivp(rhs, [t_now, t_next], [x_now, v_now], max_step=dt)
+
+        t_now = sol.t[-1]
+        x_now = sol.y[0, -1]
+        v_now = sol.y[1, -1]
+
+        history['t'].append(t_now)
+        history['x'].append(x_now)
+        history['v'].append(v_now)
+        history['F_ex'].append(F_ex_time(t_now))
+        history['c_pto'].append(C_pto)
+    return history
+
+
+def solve_cummins_stepwise_no_control_limited(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
+
+    print('Initialising function: solve_cummins_stepwise_no_control_limited')
+
+    t_final = t_span[1]
+    M_eff = body.mass + A_heave_inf
+    
+    # physical limits
+    max_displacement = body.radius
+    rho = 1000.0
+    Cd = 1.0
+    A_cross = np.pi * max_displacement**2
+
+    history = {
+        't': [0.0],
+        'x': [0.0],
+        'v': [0.0],
+        'F_ex': [F_ex_time(0.0)],
+        'c_pto': [C_pto]
+    }
+
+    t_final = t_span[1]
+    t_now = 0.0
+    x_now = 0.0
+    v_now = 0.0
+
+    def rhs(t, state):
+        x, v = state
+        t_arr = np.array(history['t'])
+        v_arr = np.array(history['v'])
+        if len(t_arr) < 2:
+            memory = 0.0
+        else:
+            tau = t - t_arr
+            k_vals = np.interp(tau, t_kernel, kernel, left=kernel[0], right=0.0)
+            memory = np.trapezoid(k_vals * v_arr, t_arr)
+            
+            # Correct for current step to prevent lagging damping in high-accel events
+            if t > t_arr[-1]:
+                k_t = kernel[0]
+                k_prev = k_vals[-1]
+                memory += 0.5 * (k_prev * v_arr[-1] + k_t * v) * (t - t_arr[-1])
+            
+        hydrostatic_force = K_heave * np.clip(x, -max_displacement, max_displacement)
+        viscous_drag = 0.5 * rho * Cd * A_cross * abs(v) * v
+        
+        dvdt = (F_ex_time(t) - memory - C_pto * v - viscous_drag - hydrostatic_force - K_pto * x) / M_eff
         return [v, dvdt]
 
     while t_now < t_final - 1e-10:
@@ -211,13 +336,18 @@ def calc_power_absorbed(history):
 
     print('Initialising function: calc_power_absorbed')
 
+    t = np.array(history['t'][50:])
     v = np.array(history['v'][50:]) # remove transients
     c_pto = np.array(history['c_pto'][50:])
     # calculate the mean absorved power. not damping was added a force proportional to velcotiy
     # we know that power  = force x velocity 
     # this gives power = constant x velcoity x velocity
     p_inst =  c_pto * v ** 2 # power at each time step
-    p_mean = np.mean(p_inst) # average power
+    
+    # average power must be time-weighted via integral to account for variable-step dense ivp solving during unlatching
+    duration = t[-1] - t[0]
+    p_mean = np.trapezoid(p_inst, t) / duration if duration > 0 else 0.0
+
     return p_inst, p_mean
 
 

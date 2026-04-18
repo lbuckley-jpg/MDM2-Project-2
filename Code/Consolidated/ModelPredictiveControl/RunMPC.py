@@ -5,6 +5,7 @@ import capytaine as cpt
 import argparse
 import os
 import sys
+import matplotlib.pyplot as plt
 
 cpt.set_logging('WARNING')
 
@@ -35,7 +36,8 @@ from MPCFunctions import (
 )
 
 from PontryaginFunctions import (
-    fit_prony_coefficients
+    fit_prony_coefficients,
+    prony_model
 )
 
 if __name__ == '__main__':
@@ -110,7 +112,7 @@ if __name__ == '__main__':
     ).values
 
     # first use prony's method to create a linear approximation to the radiation kernel
-    prony_coeffs, _ = fit_prony_coefficients(
+    prony_coeffs, k_data = fit_prony_coefficients(
         t_grid=t_kernel,
         omega=omegas,
         radiation_damping=B_heave,
@@ -120,6 +122,13 @@ if __name__ == '__main__':
         hydrostatic_stiffness=K_heave,
         n_terms=args.nprony,
     )  
+
+    # test for the prony method 
+
+    # plt.plot(t_kernel, k_data, label='actual radiation')
+    # plt.plot(t_kernel, prony_model(t_kernel, *prony_coeffs.flatten()), ls='--', label="Prony fit")
+    # plt.title('prony comparison')
+    # plt.show()
 
     # create the discrete matrices used to solve mpc
     Ad, Bd = discrete_matrices_for_mpc_from_prony(

@@ -331,3 +331,171 @@ def plot_pontryagin_results(history_opt, history_no_latch, forcing_values, p_ins
     plt.tight_layout()
     plt.show()
     print("finished: plot_pontryagin_results")
+
+
+def wec_state_rhs_limited(time, state, params, prony_coeffs, forcing, latch_state):
+    mass, added_mass_inf, pto_damping, latch_gain, hydrostatic_stiffness, max_displacement = params
+    alpha_r = prony_coeffs[:, 0]
+    beta_r = prony_coeffs[:, 1]
+    alpha_i = prony_coeffs[:, 2]
+    beta_i = prony_coeffs[:, 3]
+
+    z = state[0]
+    z_dot = state[1]
+    I_r = state[2::2]
+    I_i = state[3::2]
+
+    u = float(latch_state(time))
+    f_ex = float(forcing(time))
+
+    clipped_z = np.clip(z, -max_displacement, max_displacement)
+    hydrostatic_force = hydrostatic_stiffness * clipped_z
+    
+    rho = 1000.0
+    Cd = 1.0
+    A_cross = np.pi * max_displacement**2
+    viscous_drag = 0.5 * rho * Cd * A_cross * abs(z_dot) * z_dot
+
+    z_ddot = (
+        f_ex
+        - hydrostatic_force
+        - pto_damping * z_dot
+        - viscous_drag
+        - latch_gain * u * z_dot
+        - np.sum(I_r)
+    ) / (mass + added_mass_inf)
+
+    dI_r = beta_r * I_r - beta_i * I_i + alpha_r * z_dot
+    dI_i = beta_i * I_r + beta_r * I_i + alpha_i * z_dot
+
+    return [z_dot, z_ddot, *interleave(dI_r, dI_i)]
+
+
+def state_adjoint_rhs_limited(time, lam, params, prony_coeffs, state_sol, latch_state):
+    mass, added_mass_inf, pto_damping, latch_gain, hydrostatic_stiffness, max_displacement = params
+    alpha_r = prony_coeffs[:, 0]
+    beta_r = prony_coeffs[:, 1]
+    alpha_i = prony_coeffs[:, 2]
+    beta_i = prony_coeffs[:, 3]
+
+    state = state_sol.sol(time)
+    z = state[0]
+    z_dot = state[1]
+    u = float(latch_state(time))
+    
+    rho = 1000.0
+    Cd = 1.0
+    A_cross = np.pi * max_displacement**2
+    drag_gradient = rho * Cd * A_cross * abs(z_dot)
+    
+    stiffness_gradient = hydrostatic_stiffness if abs(z) <= max_displacement else 0.0
+
+    lam_1 = lam[0]
+    lam_2 = lam[1]
+    lam_r = lam[2::2]
+    lam_i = lam[3::2]
+
+    dlam_1 = lam_2 * stiffness_gradient / (mass + added_mass_inf)
+    dlam_2 = (
+        -2.0 * pto_damping * z_dot
+        - lam_1
+        + lam_2 * (pto_damping + drag_gradient + latch_gain * u) / (mass + added_mass_inf)
+        - np.sum(lam_r * alpha_r + lam_i * alpha_i)
+    )
+    dlam_r = -lam_r * beta_r - lam_i * beta_i + lam_2 / (mass + added_mass_inf)
+    dlam_i = lam_r * beta_i - lam_i * beta_r
+
+    return [dlam_1, dlam_2, *interleave(dlam_r, dlam_i)]
+
+
+def solve_pontryagin_latching_limited(omega, radiation_damping, t_grid, params, forcing, max_iter=100, n_terms=7, tol_changes=10):
+    print("Initialising function: solve_pontryagin_latching_limited")
+    mass, added_mass_inf, pto_damping, latch_gain, hydrostatic_stiffness, max_displacement = params
+
+    coeffs, K_data = fit_prony_coefficients(
+        t_grid, omega, radiation_damping, mass, added_mass_inf, pto_damping, hydrostatic_stiffness, n_terms
+    )
+    
+    x0 = np.zeros(2 + 2 * len(coeffs), dtype=float)
+    u_vals = np.ones_like(t_grid, dtype=float)
+    u_new = np.zeros_like(t_grid, dtype=float)
+
+    for iter_idx in range(max_iter):
+        n_changes = int(np.sum(u_new != u_vals))
+        print(f"iteration {iter_idx + 1}/{max_iter}, latch changes={n_changes}")
+        if n_changes <= tol_changes:
+            print("convergence reached for latch profile")
+            break
+
+        u_vals = u_new.copy()
+        u_func = interp1d(t_grid, u_vals, kind="previous", fill_value="extrapolate")
+
+        state_sol = solve_ivp(
+            wec_state_rhs_limited,
+            [t_grid[0], t_grid[-1]],
+            x0,
+            args=(params, coeffs, forcing, u_func),
+            dense_output=True,
+            method="LSODA",
+            max_step=0.5,
+            t_eval=t_grid,
+        )
+
+        adjoint_sol = solve_ivp(
+            state_adjoint_rhs_limited,
+            [t_grid[-1], t_grid[0]],
+            np.zeros_like(x0),
+            args=(params, coeffs, state_sol, u_func),
+            dense_output=True,
+            method="LSODA",
+            max_step=0.5,
+            t_eval=t_grid[::-1],
+        )
+
+        for idx, t_now in enumerate(t_grid):
+            lam_2 = float(adjoint_sol.sol(t_now)[1])
+            z_dot = float(state_sol.sol(t_now)[1])
+            u_new[idx] = 1.0 if (-lam_2 * latch_gain * z_dot) > 0.0 else 0.0
+
+    print("running final state solve with converged latch sequence")
+    latch_interp = interp1d(t_grid, u_new, kind="previous", fill_value="extrapolate")
+    state_sol = solve_ivp(
+        wec_state_rhs_limited,
+        [t_grid[0], t_grid[-1]],
+        x0,
+        args=(params, coeffs, forcing, latch_interp),
+        dense_output=True,
+        method="LSODA",
+        max_step=0.5,
+        t_eval=t_grid,
+    )
+
+    history_opt = {
+        "t": t_grid,
+        "x": state_sol.y[0, :],
+        "v": state_sol.y[1, :],
+        "u": u_new,
+    }
+
+    print("running baseline no-latch state solve")
+    u_zero = interp1d(t_grid, np.zeros_like(t_grid), kind="previous", fill_value="extrapolate")
+    state_no_latch = solve_ivp(
+        wec_state_rhs_limited,
+        [t_grid[0], t_grid[-1]],
+        x0,
+        args=(params, coeffs, forcing, u_zero),
+        dense_output=True,
+        method="LSODA",
+        max_step=0.5,
+        t_eval=t_grid,
+    )
+
+    history_no_latch = {
+        "t": t_grid,
+        "x": state_no_latch.y[0, :],
+        "v": state_no_latch.y[1, :],
+        "u": np.zeros_like(t_grid),
+    }
+
+    print("finished: solve_pontryagin_latching_limited")
+    return history_opt, history_no_latch, coeffs

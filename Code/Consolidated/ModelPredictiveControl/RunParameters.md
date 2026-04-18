@@ -1,2 +1,2 @@
 
-  python "Code/Consolidated/ModelPredictiveControl/RunMPC.py" --tspan 180 --seed 42 --nfreqcomponents 40 --peakperiod 12.0 --significantwaveheight 2.0 --buoymass 5000 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavedirection 3.14159 --cpto 1.0e5 --kpto 0.0 --nprony 6 --mpc_dt 0.1 --mpc_N 20
+  python "Code/Consolidated/ModelPredictiveControl/RunMPC.py" --tspan 180 --seed 42 --nfreqcomponents 150 --peakperiod 12.0 --significantwaveheight 2.0 --buoymass 5000 --buoyradius 5 --waterdensity 1000 --waterdepth 100 --wavedirection 3.14159 --cpto 1.0e5 --kpto 0.0 --nprony 6 --mpc_dt 0.1 --mpc_N 20

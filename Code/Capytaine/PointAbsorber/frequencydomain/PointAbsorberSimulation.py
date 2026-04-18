@@ -26,17 +26,25 @@ def generate_buoy(radius= 5, mass= 500):
 
     specified_mass = mass # kg
 
+    
+    
+
     buoy = cpt.FloatingBody(
         mesh=buoy_mesh,
         dofs=cpt.rigid_body_dofs(rotation_center=rotation_center),
+        # dofs=cpt.rigid_body_dofs(rotation_center=rotation_center),
         center_of_mass=rotation_center,
         mass=specified_mass,
         name="Point Absorber",
     )
 
+    buoy.keep_only_dofs(['Heave'])
+
     # Keep the same “artificially lower” inertia and hydrostatic stiffness pattern
     buoy.inertia_matrix = buoy.compute_rigid_body_inertia() # assumes density equal to that of fluid. I assume ot avoid accidental sinking
+    buoy.inertia_matrix.loc[['Heave'],['Heave']]
     buoy.hydrostatic_stiffness = buoy.immersed_part().compute_hydrostatic_stiffness()
+    buoy.hydrostatic_stiffness  = buoy.hydrostatic_stiffness.loc[['Heave'],['Heave']]
 
     return buoy
 
@@ -45,7 +53,7 @@ def setup_animation(body, fs, omega=2*pi/8, wave_amplitude=2, wave_direction=pi,
 
     '''Solve Boundary Element Method Problems'''
 
-    radiation_problems = [cpt.RadiationProblem(omega=omega, body=body.immersed_part(), radiating_dof=dof, water_depth = water_depth, rho = water_density) for dof in body.dofs]
+    radiation_problems = [cpt.RadiationProblem(omega=omega, body=body.immersed_part(), radiating_dof='Heave', water_depth = water_depth, rho = water_density)]
     radiation_results = bem_solver.solve_all(radiation_problems)
     diffraction_problem = cpt.DiffractionProblem(omega=omega, body=body.immersed_part(), wave_direction=wave_direction, water_depth = water_depth, rho = water_density)
     diffraction_result = bem_solver.solve(diffraction_problem)
@@ -109,7 +117,7 @@ if __name__ == '__main__':
 
     anim = setup_animation(body, fs, omega = omega, wave_amplitude = args.waveamplitude, wave_direction = args.wavedirection, water_depth= args.waterdepth, water_density = args.waterdensity)
     anim.run(camera_position=(0, 80, 8), resolution=(800, 600))
-    # anim.save("point_absorber_simulation_animation.ogv", camera_position=(0, 80, 8), resolution=(800, 600))
+    anim.save("point_absorber_simulation_animation.ogv", camera_position=(0, 80, 8), resolution=(800, 600))
 
 
 
