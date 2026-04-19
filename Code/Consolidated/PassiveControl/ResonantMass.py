@@ -18,8 +18,8 @@ RHO    = 1025.0
 G      = 9.81
 
 # sea state params for jonswap
-HS     = 2.0                    # significant wave height [m]
-TP     = 5.0                    # peak period [s]       (=> f_p = 0.2 Hz)
+HS     = 1.6                    # significant wave height [m]
+TP     = 5.30                   # peak period [s] ~ SLOWER WAVE FREQ TO BE TUNED 
 GAMMA  = 3.3                    # JONSWAP peak-enhancement factor
 SEED   = 42                     # RNG seed for phase realisation
 
