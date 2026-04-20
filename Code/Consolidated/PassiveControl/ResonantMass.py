@@ -11,15 +11,14 @@ import capytaine as cpt
 # -----------------------------------------------------------------------------
 # 0. User parameters
 # -----------------------------------------------------------------------------
-FAST_MODE = True                # coarser sweeps / shorter sim for quick runs
 
 RADIUS = 5.0
 RHO    = 1025.0
 G      = 9.81
 
 # sea state params for jonswap
-HS     = 1.6                    # significant wave height [m]
-TP     = 5.30                   # peak period [s] ~ SLOWER WAVE FREQ TO BE TUNED 
+HS     = 0.5                    # significant wave height [m]
+TP     = 5.3                   # peak period [s] ~ SLOWER WAVE FREQ TO BE TUNED 
 GAMMA  = 3.3                    # JONSWAP peak-enhancement factor
 SEED   = 42                     # RNG seed for phase realisation
 

@@ -42,8 +42,8 @@ RHO    = 1025.0
 G      = 9.81
 
 # Sea state (JONSWAP)
-HS     = 1.5                    # significant wave height [m]
-TP     = 6.01                   # peak period [s]
+HS     = 0.5                    # significant wave height [m]
+TP     = 5.30                   # peak period [s]
 GAMMA  = 3.3                    # JONSWAP peak-enhancement factor
 SEED   = 42                     # RNG seed for phase realisation
 
@@ -61,13 +61,20 @@ DT         = 0.02
 
 # Hydrostatics and reference equilibrium mass (half-submerged sphere)
 C    = RHO * G * np.pi * RADIUS**2
-MASS = 427561.1     #   [kg] calculated from resonant mass at sea state 2
+
+# -----------------------------------------------------------------------------
+# Fixed buoy mass (no longer tuned to resonance)
+# -----------------------------------------------------------------------------
+#   MASS is now a user-chosen constant. Default is the equilibrium
+#   half-submerged mass; change it if you want to model a ballasted or
+#   lighter buoy. The old resonance-tuning block ( m = C/omega_p^2 - A(wp) )
+#   has been removed.
+MASS = 571,268.6                    # [kg]
 m = float(MASS)
 
 print(f"Sea state: Hs = {HS:.2f} m,  Tp = {TP:.2f} s (omega_p = "
       f"{OMEGA_P:.3f} rad/s),  gamma = {GAMMA}")
-print(f"Buoy:      r  = {RADIUS} m,  C = {C:,.1f} N/m")
-print(f"Using FIXED mass:  m = {m:,.1f} kg")
+print(f"Buoy:      r  = {RADIUS} m,  C = {C:,.1f} N/m, M =  ")
 
 # -----------------------------------------------------------------------------
 # 1. Capytaine BEM for A(w), B(w), Fex(w)
@@ -343,5 +350,121 @@ ax[1, 2].legend(fontsize=8)
 plt.tight_layout()
 out_png = os.path.join(SCRIPT_DIR, "jonswap_vs_sinusoidal.png")
 plt.savefig(out_png, dpi=150)
-print(f"\nFigure written to: {out_png}")
+print(f"\nFigure 1 written to: {out_png}")
+
+# =============================================================================
+# 9. Second figure:  Linear vs Coulomb across JONSWAP sea states SS1 / SS2 / SS3
+# =============================================================================
+# Note: the table lists T_e (energy period). For JONSWAP gamma = 3.3 the
+# energy and peak periods are related by T_e ~ 0.857 * T_p, but this script
+# is already using the tabulated T values directly as T_p (consistent with
+# the original SS2 run above). Adjust below if you prefer strict T_e usage.
+SEA_STATES = [
+    ("SS1", 0.5, 5.30),
+    ("SS2", 1.5, 6.01),
+    ("SS3", 2.5, 7.05),
+]
+
+def build_jsw_excitation(Hs_i, Tp_i, seed=SEED):
+    """Build a JONSWAP excitation F_ex(t) and return the spectral data."""
+    wp_i = 2.0 * np.pi / Tp_i
+    w_lo_i = max(omega_grid[0], 0.3 * wp_i)
+    w_hi_i = min(omega_grid[-1], 3.5 * wp_i)
+    w_c    = np.linspace(w_lo_i, w_hi_i, N_COMPS)
+    dw_i   = w_c[1] - w_c[0]
+    S_c    = jonswap_S(w_c, Hs_i, Tp_i, GAMMA)
+    amp_i  = np.sqrt(2.0 * S_c * dw_i)
+    sigma  = np.sqrt(np.trapz(S_c, w_c))
+    phs    = np.random.default_rng(seed).uniform(0.0, 2.0*np.pi, N_COMPS)
+    Fm_c   = Fmag_of(w_c)
+    Fphi_c = Fphs_of(w_c)
+
+    def F_ex(tt):
+        return np.sum(amp_i * Fm_c * np.cos(w_c * tt + phs + Fphi_c))
+
+    return F_ex, sigma, w_c, S_c, wp_i
+
+ss_results = {}
+for name, Hs_i, Tp_i in SEA_STATES:
+    print(f"\n========== {name}:  Hs = {Hs_i} m, Tp = {Tp_i} s ==========")
+    Fex_i, sigma_i, w_ci, S_ci, wp_i = build_jsw_excitation(Hs_i, Tp_i)
+
+    # Sweep ranges scale naturally with the sea state's energy and with the
+    # hydrodynamic damping at that peak frequency.
+    B_wp_i   = float(B_of(wp_i))
+    Fmag_p_i = float(Fmag_of(wp_i))
+    B_vals_i = np.geomspace(0.05 * B_wp_i,   40.0 * B_wp_i,  N_SWEEP)
+    C_scale  = Fmag_p_i * sigma_i * np.sqrt(2)
+    C_vals_i = np.geomspace(0.02 * C_scale,   2.0 * C_scale, N_SWEEP)
+
+    print("  sweeping linear  ...")
+    P_lin_i = np.array([simulate(Fex_i, lin_f(Bp))[3]  for Bp in B_vals_i])
+    print("  sweeping coulomb ...")
+    P_cou_i = np.array([simulate(Fex_i, coul_f(Cp))[3] for Cp in C_vals_i])
+
+    ss_results[name] = dict(
+        Hs=Hs_i, Tp=Tp_i, sigma=sigma_i,
+        B_vals=B_vals_i, P_lin=P_lin_i,
+        C_vals=C_vals_i, P_cou=P_cou_i,
+    )
+
+# ---- Report optima ----
+print("\n========  Peak fixed-PTO power by JONSWAP sea state  ========")
+for name, d in ss_results.items():
+    iL, iC = int(np.argmax(d['P_lin'])), int(np.argmax(d['P_cou']))
+    print(f"{name}  (Hs={d['Hs']}, Tp={d['Tp']}):  "
+          f"linear  B*={d['B_vals'][iL]:>10,.0f}  P={d['P_lin'][iL]/1e3:6.2f} kW"
+          f"   |   coulomb  C*={d['C_vals'][iC]:>10,.0f}  "
+          f"P={d['P_cou'][iC]/1e3:6.2f} kW")
+
+# ---- Plot ----
+fig2, ax2 = plt.subplots(1, 3, figsize=(15, 4.8))
+ss_colors = {"SS1": "C0", "SS2": "C1", "SS3": "C2"}
+
+# (a) Linear sweeps
+for name, d in ss_results.items():
+    ax2[0].semilogx(d['B_vals'], d['P_lin']/1e3, 'o-',
+                    color=ss_colors[name],
+                    label=f"{name}: Hs={d['Hs']} m, Tp={d['Tp']} s")
+ax2[0].set_xlabel(r"$B_{PTO}$ [Ns/m]")
+ax2[0].set_ylabel("Mean absorbed power [kW]")
+ax2[0].set_title("Linear PTO sweep")
+ax2[0].grid(alpha=0.3); ax2[0].legend(fontsize=8)
+
+# (b) Coulomb sweeps
+for name, d in ss_results.items():
+    ax2[1].semilogx(d['C_vals'], d['P_cou']/1e3, 's--',
+                    color=ss_colors[name],
+                    label=f"{name}: Hs={d['Hs']} m, Tp={d['Tp']} s")
+ax2[1].set_xlabel(r"$C_{PTO}$ [N]")
+ax2[1].set_ylabel("Mean absorbed power [kW]")
+ax2[1].set_title("Coulomb PTO sweep")
+ax2[1].grid(alpha=0.3); ax2[1].legend(fontsize=8)
+
+# (c) Grouped bar chart of peak power per sea state
+ss_names   = [n for n, _, _ in SEA_STATES]
+P_lin_peak = [ss_results[n]['P_lin'].max() for n in ss_names]
+P_cou_peak = [ss_results[n]['P_cou'].max() for n in ss_names]
+x          = np.arange(len(ss_names))
+w          = 0.35
+b1 = ax2[2].bar(x - w/2, np.array(P_lin_peak)/1e3, w,
+                color='C0', label="linear")
+b2 = ax2[2].bar(x + w/2, np.array(P_cou_peak)/1e3, w,
+                color='C1', label="coulomb")
+ax2[2].set_xticks(x)
+ax2[2].set_xticklabels([f"{n}\nHs={h}, Tp={t}"
+                        for n, h, t in SEA_STATES], fontsize=9)
+ax2[2].set_ylabel("Peak mean absorbed power [kW]")
+ax2[2].set_title("Best fixed-PTO performance vs sea state")
+ax2[2].legend()
+for bars, vals in [(b1, P_lin_peak), (b2, P_cou_peak)]:
+    for b, v in zip(bars, vals):
+        ax2[2].text(b.get_x() + b.get_width()/2, b.get_height()*1.01,
+                    f"{v/1e3:.2f}", ha='center', fontsize=8)
+
+plt.tight_layout()
+out_png2 = os.path.join(SCRIPT_DIR, "jonswap_sea_states.png")
+plt.savefig(out_png2, dpi=150)
+print(f"Figure 2 written to: {out_png2}")
+
 plt.show()
