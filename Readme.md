@@ -1,34 +1,9 @@
 # MDM2-Project-2
-## Git Repo for MDM2 Project 2
+# Point Absorbing Buoy #
+As a group we were tasked with analysing and optimising the dynamic response of a wave energy converting point absorber. This repository contains the code we developed during our modelling process.
 
-**Itinerary:**
+The repository includes tools for simulation, analysis, and comparison of different control approaches
 
-Monday - Finish all urgent tasks
+All code included in the presentation can be found in the Code/Consolidated folder along with other unused content that was developed as part of the modelling process.
 
-Tuesday - Coordination meeting
-
-Friday - Aim for all urgent tasks to be at least in the review stage
-
-**For Meetings:**
-
-Leader brings Agenda
-
-**Meeting Format:**
-
-(1) Welcome and apologies
-
-(2) Recap of previous actions
-
-(3) Progress Overview
-
-(4) Agree tasks and decide which are urgent
-
-(5) Any other business
-
-**3 task types:**
-
-(1) Urgent: Needs doing this week
-
-(2) Important: Needs to be done by the end of the project but not nessesarily 
-
-(3) Optional: Ideas of tasks that may or may not be in the final project
+Relevant graphs can be found within the pycache of most of the sub-folders (exceptions include CoastalWikiModel and PassiveControl) and if you want to run the code for yourself you should use the relevant folder's RunParameters.md file in your terminal with the 'capytaine_env' environment (also included in the repository in the environment folder)
