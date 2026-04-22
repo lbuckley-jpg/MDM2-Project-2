@@ -1,6 +1,8 @@
 # MDM2-Project-2
 # Point Absorbing Buoy #
-As a group we were tasked with analysing and optimising the dynamic response of a wave energy converting point absorber. This repository contains the code we developed during our modelling process.
+As a group we were tasked with analysing and optimising the dynamic response of a wave energy converting point absorber (shown below). This repository contains the code we developed during our modelling process.
+
+<img width="434" height="325" alt="Point_Absorber_Diagram" src="https://github.com/user-attachments/assets/f141f841-1a22-4d10-9a5e-863254c09594" />
 
 The repository includes tools for simulation, analysis, and comparison of different control approaches
 
