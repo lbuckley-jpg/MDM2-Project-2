@@ -1,24 +1,6 @@
 """
-JONSWAP irregular waves  vs.  monochromatic waves
-=================================================
-
-Compares the absorbed power of a half-submerged spherical buoy between:
-
-    (a) a monochromatic (sinusoidal) sea state at the JONSWAP peak
-        frequency, matched in mean wave energy;
-    (b) a stochastic JONSWAP sea state (Hs, Tp, gamma).
-
-For each sea state the PTO coefficient of both
-    linear  :  F_u = -B_pto * x_dot
-    coulomb :  F_u = -C_pto * sign(x_dot)
-is swept and the optimum fixed value is reported. The buoy dynamics use
-the Cummins equation with hydrodynamic coefficients from Capytaine.
-
-The buoy mass is now a FIXED USER PARAMETER (MASS). It is no longer tuned
-to the resonance condition; set MASS below to whatever you want to model.
-
-Run:    python buoy_jonswap_vs_sinusoidal.py
-Needs:  capytaine >= 2.0, numpy, scipy, matplotlib
+Comparing coulomb and linear damping in JONSWAP and sinusodal sea states
+using capytaine solver
 """
 
 import os
@@ -31,46 +13,43 @@ from scipy.interpolate import interp1d
 
 import capytaine as cpt
 
-# Outputs sit next to this script regardless of the launch CWD
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
 # -----------------------------------------------------------------------------
-# 0. User parameters
+# pParameters
 # -----------------------------------------------------------------------------
 RADIUS = 5.0
 RHO    = 1025.0
 G      = 9.81
 
-# Sea state (JONSWAP)
+# Sea state (jonswap)
 HS     = 1.5                    # significant wave height [m]
 TP     = 6.01                   # peak period [s]
-GAMMA  = 3.3                    # JONSWAP peak-enhancement factor
-SEED   = 42                     # RNG seed for phase realisation
+GAMMA  = 3.3                    # jonswaop peak enhancement factor
+SEED   = 42                     
 
 OMEGA_P = 2.0 * np.pi / TP
 
-# BEM / simulation resolution
+# capytaine simulation resolution
 MESH_RES   = (60, 60)
-N_OMEGA_LO = 40
-N_OMEGA_HI = 15
-N_COMPS    = 60                 # JONSWAP no. of harmonics
-N_SWEEP    = 10
-T_END      = 300.0
-T_SETTLE   = 120.0
-DT         = 0.02
+N_OMEGA_LO = 40                 # |no. of low/high freq.s to solve for 
+N_OMEGA_HI = 15                 # |A(ω), B(ω), Fex(ω)
+N_COMPS    = 60                 # jonswap no. of harmonics
+N_SWEEP    = 10                 # no. of coefficients in each sweep
+T_END      = 300.0              # simulation length [s]
+T_SETTLE   = 120.0              # discard first time for mean power
+DT         = 0.02               
 
-# Hydrostatics and reference equilibrium mass (half-submerged sphere)
+# reference equilibrium mass (half-submerged)
 C    = RHO * G * np.pi * RADIUS**2
 MASS = 427561.1     #   [kg] calculated from resonant mass at sea state 2
 m = float(MASS)
 
-print(f"Sea state: Hs = {HS:.2f} m,  Tp = {TP:.2f} s (omega_p = "
-      f"{OMEGA_P:.3f} rad/s),  gamma = {GAMMA}")
-print(f"Buoy:      r  = {RADIUS} m,  C = {C:,.1f} N/m")
+print(f"Sea state: Hs = {HS:.2f} m,  Tp = {TP:.2f} s (omega_p = {OMEGA_P:.3f} rad/s),  gamma = {GAMMA}")
+print(f"Buoy: r  = {RADIUS} m,  C = {C:,.1f} N/m")
 print(f"Using FIXED mass:  m = {m:,.1f} kg")
 
 # -----------------------------------------------------------------------------
-# 1. Capytaine BEM for A(w), B(w), Fex(w)
+# Capytaine BEM for A(w), B(w), Fex(w)
+# same method as in ResonantMass.py for Bound Element Meth.
 # -----------------------------------------------------------------------------
 mesh = cpt.mesh_sphere(radius=RADIUS, center=(0, 0, 0),
                        resolution=MESH_RES).immersed_part()
@@ -78,7 +57,7 @@ body = cpt.FloatingBody(mesh=mesh, name="sphere_r5")
 body.add_translation_dof(name="Heave")
 body.center_of_mass = np.array([0.0, 0.0, -3.0 * RADIUS / 8.0])
 
-# Frequency grid covers the JONSWAP support + high-frequency tail
+# Frequency grid covers the jonswap + high-frequency vals.
 # so that K(t) and A(inf) are well approximated.
 omega_grid = np.concatenate([np.linspace(0.15, 3.2, N_OMEGA_LO),
                              np.linspace(3.5, 9.0, N_OMEGA_HI)])
@@ -88,6 +67,7 @@ problems  = [cpt.RadiationProblem(body=body, radiating_dof="Heave",
 problems += [cpt.DiffractionProblem(body=body, wave_direction=0.0,
                                     omega=w, rho=RHO, g=G) for w in omega_grid]
 
+# BEM
 solver  = cpt.BEMSolver()
 results = solver.solve_all(problems, progress_bar=True)
 ds      = cpt.assemble_dataset(results)
@@ -99,7 +79,6 @@ B   = ds.radiation_damping.sel(radiating_dof="Heave",
 Fex = ds.excitation_force.sel(influenced_dof="Heave").values.flatten()
 A_inf = A[-1]
 
-# Interpolators
 A_of    = interp1d(omega_grid, A,           bounds_error=False,
                    fill_value=(A[0],   A[-1]))
 B_of    = interp1d(omega_grid, B,           bounds_error=False,
@@ -109,7 +88,7 @@ Fmag_of = interp1d(omega_grid, np.abs(Fex), bounds_error=False,
 Fphs_of = interp1d(omega_grid, np.unwrap(np.angle(Fex)),
                    bounds_error=False, fill_value=0.0)
 
-# Handy coefficients at the peak frequency
+# coefficients at the peak frequency
 A_wp = float(A_of(OMEGA_P))
 B_wp = float(B_of(OMEGA_P))
 
@@ -121,7 +100,7 @@ print(f"Resonance would require m = C/wp^2 - A(wp) = "
       f"{m / M_r_required:.2f})")
 
 # -----------------------------------------------------------------------------
-# 3. Radiation impulse-response kernel (Ogilvie 1964)
+# Radiation impulse-response kernel calc.
 # -----------------------------------------------------------------------------
 t_K  = np.arange(0.0, 40.0, DT)
 K_t  = np.array([(2.0/np.pi) * np.trapz(B * np.cos(omega_grid * tt),
@@ -129,10 +108,10 @@ K_t  = np.array([(2.0/np.pi) * np.trapz(B * np.cos(omega_grid * tt),
 K_interp = interp1d(t_K, K_t, bounds_error=False, fill_value=0.0)
 
 # -----------------------------------------------------------------------------
-# 4. JONSWAP spectrum S(omega) and two wave realisations
+# jonswap spectrum
 # -----------------------------------------------------------------------------
-def jonswap_S(omega, Hs, Tp, gamma=3.3):
-    """Two-sided JONSWAP spectrum S_eta(omega) in (m^2.s/rad)."""
+def jonswap(omega, Hs, Tp, gamma=3.3):
+    """jonswap spectrum calculater"""
     wp = 2.0 * np.pi / Tp
     sigma = np.where(omega <= wp, 0.07, 0.09)
     r = np.exp(-0.5 * ((omega - wp) / (sigma * wp))**2)
@@ -143,22 +122,23 @@ def jonswap_S(omega, Hs, Tp, gamma=3.3):
     S *= target_m0 / m0
     return S
 
+# freq. sweep
 w_lo = max(omega_grid[0], 0.3 * OMEGA_P)
 w_hi = min(omega_grid[-1], 3.5 * OMEGA_P)
 w_comp = np.linspace(w_lo, w_hi, N_COMPS)
-dw     = w_comp[1] - w_comp[0]
-S_comp = jonswap_S(w_comp, HS, TP, GAMMA)
+dw = w_comp[1] - w_comp[0]
+S_comp = jonswap(w_comp, HS, TP, GAMMA)
 
 eta_amp = np.sqrt(2.0 * S_comp * dw)
 m0_num  = np.trapz(S_comp, w_comp)
 Hs_num  = 4.0 * np.sqrt(m0_num)
 sigma_eta_jsw = np.sqrt(m0_num)
 
-rng    = np.random.default_rng(SEED)
+rng = np.random.default_rng(SEED)
 phases = rng.uniform(0.0, 2.0 * np.pi, N_COMPS)
 
-def F_ex_irregular(tt):
-    Fm  = Fmag_of(w_comp)
+def excitation_force(tt):
+    Fm = Fmag_of(w_comp)
     phi = Fphs_of(w_comp)
     return np.sum(eta_amp * Fm * np.cos(w_comp * tt + phases + phi))
 
@@ -176,7 +156,8 @@ print(f"Monochromatic equivalent amplitude (matched energy): "
       f"a_mono = {a_mono:.3f} m  (= Hs / (2 sqrt(2)))")
 
 # -----------------------------------------------------------------------------
-# 5. Cummins simulation with bounded memory + LSODA
+# Cummins simulation with bounded memory
+# (ai used to assist writing here)
 # -----------------------------------------------------------------------------
 MEMORY_LEN = 15.0
 
@@ -212,7 +193,7 @@ def simulate(F_ex_func, pto_force, t_end=T_END, settle=T_SETTLE):
     return tt, x, v, P
 
 # -----------------------------------------------------------------------------
-# 6. Sweep both control laws for each sea state
+# sweep both control laws for each sea state
 # -----------------------------------------------------------------------------
 B_scale = B_wp
 B_vals  = np.geomspace(0.05 * B_scale, 40.0 * B_scale, N_SWEEP)
@@ -233,8 +214,8 @@ def lin_f(Bp):
 sweeps = {
     ("mono", "linear")  : (B_vals,      F_ex_mono, lin_f),
     ("mono", "coulomb") : (C_vals_mono, F_ex_mono, coul_f),
-    ("jsw",  "linear")  : (B_vals,      F_ex_irregular, lin_f),
-    ("jsw",  "coulomb") : (C_vals_jsw,  F_ex_irregular, coul_f),
+    ("jsw",  "linear")  : (B_vals,      excitation_force, lin_f),
+    ("jsw",  "coulomb") : (C_vals_jsw,  excitation_force, coul_f),
 }
 
 powers = {}
@@ -247,7 +228,7 @@ for (sea, law), (coeffs, Fex_fn, pto_fn) in sweeps.items():
     powers[(sea, law)] = (np.asarray(coeffs), np.asarray(P))
 
 # -----------------------------------------------------------------------------
-# 7. Report optima and run the "best" trace of each case for plotting
+# find optimum and run best val case for plotting
 # -----------------------------------------------------------------------------
 print("\n================  Optimal fixed PTO coefficients  ================")
 traces = {}
@@ -277,7 +258,7 @@ print(f"  P_coulomb / P_linear  (mono)    = {P_mono_cou/P_mono_lin:.3f}  "
 print(f"  P_coulomb / P_linear  (JONSWAP) = {P_jsw_cou/P_jsw_lin:.3f}")
 
 # -----------------------------------------------------------------------------
-# 8. Plots
+# plot
 # -----------------------------------------------------------------------------
 fig, ax = plt.subplots(2, 3, figsize=(15, 8))
 
@@ -288,7 +269,7 @@ ax[0, 0].set_title(f"JONSWAP:  Hs={HS} m, Tp={TP} s, γ={GAMMA}")
 
 t_show = np.arange(0.0, min(60.0, T_END), DT)
 Fex_m  = np.array([F_ex_mono(tt)      for tt in t_show])
-Fex_j  = np.array([F_ex_irregular(tt) for tt in t_show])
+Fex_j  = np.array([excitation_force(tt) for tt in t_show])
 ax[0, 1].plot(t_show, Fex_j/1e3, label="JONSWAP", color='C1')
 ax[0, 1].plot(t_show, Fex_m/1e3, label="monochromatic", color='C0', lw=1)
 ax[0, 1].set_xlabel("t [s]"); ax[0, 1].set_ylabel(r"$F_{ex}$ [kN]")
@@ -341,7 +322,5 @@ ax[1, 2].set_title("JONSWAP: instantaneous absorbed power")
 ax[1, 2].legend(fontsize=8)
 
 plt.tight_layout()
-out_png = os.path.join(SCRIPT_DIR, "jonswap_vs_sinusoidal.png")
-plt.savefig(out_png, dpi=150)
-print(f"\nFigure written to: {out_png}")
+plt.savefig("jonswap_vs_sinusoidal.png", dpi=150)
 plt.show()

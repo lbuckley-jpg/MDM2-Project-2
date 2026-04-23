@@ -5,22 +5,21 @@ RESONANT MASS for most common sea state
 
 import numpy as np
 from scipy.interpolate import interp1d
-
 import capytaine as cpt
 
 # -----------------------------------------------------------------------------
-# 0. User parameters
+# Constnt parameters
 # -----------------------------------------------------------------------------
 
-RADIUS = 5.0
+RADIUS = 2.0
 RHO    = 1025.0
 G      = 9.81
 
 # sea state params for jonswap
-HS     = 0.5                    # significant wave height [m]
-TP     = 5.3                   # peak period [s] ~ SLOWER WAVE FREQ TO BE TUNED 
-GAMMA  = 3.3                    # JONSWAP peak-enhancement factor
-SEED   = 42                     # RNG seed for phase realisation
+HS     = 1.5                    # significant wave height [m]
+TP     = 6.01                   # peak period [s] ~ SLOWER WAVE FREQ TO BE TUNED 
+GAMMA  = 3.3                    # jonswap peak enhancement factor
+SEED   = 42                     
 
 OMEGA_P = 2.0 * np.pi / TP
 
@@ -43,12 +42,12 @@ print(f"Buoy:      r  = {RADIUS} m,  C = {C:,.1f} N/m,  "
 # -----------------------------------------------------------------------------
 mesh = cpt.mesh_sphere(radius=RADIUS, center=(0, 0, 0),
                        resolution=MESH_RES).immersed_part()
-body = cpt.FloatingBody(mesh=mesh, name="sphere_r5")
+body = cpt.FloatingBody(mesh=mesh, name="sphere_r2")
 body.add_translation_dof(name="Heave")
-body.center_of_mass = np.array([0.0, 0.0, -3.0 * RADIUS / 8.0])
 
 
 '''AI here to solve cpt: MUST CHECK!!!'''
+# USES SAME METHOD AS OTHER ADAPTIVE CONTROL IMPLEMENTATION OF CPT
 
 # Frequency grid covers the entire JONSWAP support + some high-frequency
 # bandwidth so that K(t) and A(inf) are well approximated.
