@@ -7,5 +7,6 @@ As a group we were tasked with analysing and optimising the dynamic response of 
 The repository includes tools for simulation, analysis, and comparison of different control approaches
 
 All code included in the presentation can be found in the Code/Consolidated folder along with other unused content that was developed as part of the modelling process.
+Some redundant code may not run as shared functions were updated with other scripts in mind. However the main Code used for our results is in the root directory of Code/Consolidated.
 
-Relevant graphs can be found within the pycache of most of the sub-folders (exceptions include CoastalWikiModel and PassiveControl) and if you want to run the code for yourself you should use the relevant folder's RunParameters.md file in your terminal with the 'capytaine_env' environment (also included in the repository in the environment folder)
+If you want to run the code for yourself you should use the relevant folder's RunParameters.md file in your terminal with the 'capytaine_env' environment (also included in the repository in the environment folder)
