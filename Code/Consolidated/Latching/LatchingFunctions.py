@@ -5,7 +5,7 @@ from scipy.optimize import brentq
 
 '''--------solve cummins equation stepwise (latch)---------'''
 
-def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
+def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, B_pto, K_pto, t_span, dt=0.05):
 
     print('Initialising function: solve_cummins_stepwise_latch')
 
@@ -17,7 +17,7 @@ def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F
         'x': [0.0],
         'v': [0.0],
         'F_ex': [F_ex_time(0.0)],
-        'c_pto': [C_pto]
+        'b_pto': [B_pto]
     }
 
     t_final = t_span[1]
@@ -44,7 +44,7 @@ def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F
                 k_t = kernel[0]
                 k_prev = k_vals[-1]
                 memory += 0.5 * (k_prev * v_arr[-1] + k_t * v) * (t - t_arr[-1])
-        dvdt = (F_ex_time(t) - memory - C_pto * v - (K_heave + K_pto) * x) / M_eff
+        dvdt = (F_ex_time(t) - memory - B_pto * v - (K_heave + K_pto) * x) / M_eff
         return [v, dvdt]
 
     # detects zero velocity of the buoy ie the latch event
@@ -60,7 +60,7 @@ def solve_cummins_stepwise_latch(body, A_heave_inf, t_kernel, kernel, K_heave, F
         history['x'].append(x_val)
         history['v'].append(v_val)
         history['F_ex'].append(F_ex_time(t_val))
-        history['c_pto'].append(C_pto)
+        history['b_pto'].append(B_pto)
 
     # function that sweeps a time interval looking for the unlatch criteria and then returns the root where F = 0
     def find_unlatch_time(t_start, t_end, x_latched): # this function calculates the time when the force is maximal and opposite to the latched position
@@ -213,7 +213,7 @@ def solve_cummins_stepwise_no_latch_rl(rk4_solver, body, A_heave_inf, t_kernel, 
 
 '''--------------analyse data--------------'''
 
-def calc_power_absorbed(history, c_pto):
+def calc_power_absorbed(history, b_pto):
 
     print('Initialising function: calc_power_absorbed')
 
@@ -222,7 +222,7 @@ def calc_power_absorbed(history, c_pto):
     # calculate the mean absorved power. not damping was added a force proportional to velcotiy
     # we know that power  = force x velocity 
     # this gives power = constant x velcoity x velocity
-    p_inst =  c_pto * v ** 2 # power at each time step
+    p_inst =  b_pto * v ** 2 # power at each time step
     p_mean = np.mean(p_inst) # average power
     return p_inst, p_mean
 
@@ -256,7 +256,7 @@ def plot_power(history_latch, history_no_latch, p_inst_latch, p_inst_no_latch):
 
 '''----------------save------------'''
 
-def solve_cummins_stepwise_latch_limited(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
+def solve_cummins_stepwise_latch_limited(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, B_pto, K_pto, t_span, dt=0.05, pto_force_max=np.inf):
 
     print('Initialising function: solve_cummins_stepwise_latch_limited')
 
@@ -274,7 +274,7 @@ def solve_cummins_stepwise_latch_limited(body, A_heave_inf, t_kernel, kernel, K_
         'x': [0.0],
         'v': [0.0],
         'F_ex': [F_ex_time(0.0)],
-        'c_pto': [C_pto]
+        'b_pto': [B_pto]
     }
 
     t_final = t_span[1]
@@ -303,9 +303,12 @@ def solve_cummins_stepwise_latch_limited(body, A_heave_inf, t_kernel, kernel, K_
                 memory += 0.5 * (k_prev * v_arr[-1] + k_t * v) * (t - t_arr[-1])
             
         hydrostatic_force = K_heave * np.clip(x, -max_displacement, max_displacement)
-        viscous_drag = 0.5 * rho * Cd * A_cross * abs(v) * v
+        viscous_drag = 0 #invicid
+        
+        # Linear PTO damping with force saturation (clipping)
+        f_pto = np.clip(B_pto * v, -pto_force_max, pto_force_max)
             
-        dvdt = (F_ex_time(t) - memory - C_pto * v - viscous_drag - hydrostatic_force - K_pto * x) / M_eff
+        dvdt = (F_ex_time(t) - memory - f_pto - viscous_drag - hydrostatic_force - K_pto * x) / M_eff
         return [v, dvdt]
 
     # detects zero velocity of the buoy ie the latch event
@@ -321,7 +324,7 @@ def solve_cummins_stepwise_latch_limited(body, A_heave_inf, t_kernel, kernel, K_
         history['x'].append(x_val)
         history['v'].append(v_val)
         history['F_ex'].append(F_ex_time(t_val))
-        history['c_pto'].append(C_pto)
+        history['b_pto'].append(B_pto)
 
     # function that sweeps a time interval looking for the unlatch criteria and then returns the root where F = 0
     def find_unlatch_time(t_start, t_end, x_latched): # this function calculates the time when the force is maximal and opposite to the latched position

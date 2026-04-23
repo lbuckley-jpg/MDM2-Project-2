@@ -17,22 +17,30 @@ bem_solver = cpt.BEMSolver()
 adaptation for a buoy
 '''
 
-def generate_buoy(radius= 5, mass= 500):
-    # Geometry: a sphere of radius 3 centered at the free surface (z = 0)
-    buoy_mesh = cpt.mesh_sphere(radius=radius, center=(0.0, 0.0, 0.0), resolution=(20, 20))
+def generate_buoy(radius=5, height=10, mass=500, draft=None):
+    # If draft is not specified, make it half-submerged
+    if draft is None:
+        draft = height / 2.0
 
-    # Use a consistent rotation center and center of mass
-    rotation_center = (0.0, 0.0, 0.0)
+    # Geometry: a vertical cylinder.
+    # The bottom is at z = -draft. The top is at z = height - draft.
+    # The cylinder centre is placed at z = height/2 - draft.
+    center_z = (height / 2.0) - draft
+    buoy_mesh = cpt.mesh_vertical_cylinder(
+        radius=radius,
+        length=height,
+        center=(0.0, 0.0, center_z),
+        resolution=(20, 20, 20),
+    )
 
-    specified_mass = mass # kg
+    # Rotation center and center of mass at the geometric centroid of the cylinder
+    rotation_center = (0.0, 0.0, center_z)
 
-    
-    
+    specified_mass = mass  # kg
 
     buoy = cpt.FloatingBody(
         mesh=buoy_mesh,
         dofs=cpt.rigid_body_dofs(rotation_center=rotation_center),
-        # dofs=cpt.rigid_body_dofs(rotation_center=rotation_center),
         center_of_mass=rotation_center,
         mass=specified_mass,
         name="Point Absorber",
@@ -40,11 +48,10 @@ def generate_buoy(radius= 5, mass= 500):
 
     buoy.keep_only_dofs(['Heave'])
 
-    # Keep the same “artificially lower” inertia and hydrostatic stiffness pattern
-    buoy.inertia_matrix = buoy.compute_rigid_body_inertia() # assumes density equal to that of fluid. I assume ot avoid accidental sinking
-    buoy.inertia_matrix.loc[['Heave'],['Heave']]
+    buoy.inertia_matrix = buoy.compute_rigid_body_inertia()
+    buoy.inertia_matrix.loc[['Heave'], ['Heave']]
     buoy.hydrostatic_stiffness = buoy.immersed_part().compute_hydrostatic_stiffness()
-    buoy.hydrostatic_stiffness  = buoy.hydrostatic_stiffness.loc[['Heave'],['Heave']]
+    buoy.hydrostatic_stiffness = buoy.hydrostatic_stiffness.loc[['Heave'], ['Heave']]
 
     return buoy
 
@@ -94,6 +101,8 @@ if __name__ == '__main__':
     # parameters for the buoy
     parser.add_argument("--buoymass", type=float, required=False)
     parser.add_argument("--buoyradius", type=float, required=False)
+    parser.add_argument("--buoyheight", type=float, required=False)
+    parser.add_argument("--buoydraft", type=float, required=False)
 
     # parameters for the water
 
@@ -109,7 +118,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    body = generate_buoy(radius = args.buoyradius, mass = args.buoymass)
+    body = generate_buoy(radius=args.buoyradius, height=args.buoyheight, mass=args.buoymass, draft=args.buoydraft)
 
     fs = cpt.FreeSurface(x_range=(-100, 75), y_range=(-100, 75), nx=100, ny=100)
 

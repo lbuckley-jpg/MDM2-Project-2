@@ -31,7 +31,6 @@ def jonswap_frequency_amplitudes(omega, delta_omega, Hs = 2.0, Tp=12.0 , gamma=3
     """
     JONSWAP spectral density S(omega) [m^2 s / rad]
     Returns wave amplitude for each frequency component.
-
     Parameters
     ----------
     omega       : np.ndarray  angular frequencies [rad/s]
@@ -60,11 +59,21 @@ def jonswap_frequency_amplitudes(omega, delta_omega, Hs = 2.0, Tp=12.0 , gamma=3
 
 '''-----------generate buoy----------'''
 
-def generate_buoy(radius=5, mass=5000):
+def generate_buoy(radius=2, mass=100000, height=8, draft=None):
     print('Initialising function: generate_buoy')
 
-    # create buoy mesh
-    buoy_mesh = cpt.mesh_sphere(radius=radius, center=(0.0,0.0,0.0), resolution=(30,30))
+    # Handle cases where None might be passed explicitly from argparse
+    if height is None:
+        height = radius * 2.0
+    if draft is None:
+        draft = height / 2.0
+    center_z = (height / 2.0) - draft
+    buoy_mesh = cpt.mesh_vertical_cylinder(
+        radius=radius,
+        length=height,
+        center=(0.0, 0.0, center_z),
+        resolution=(20, 20, 20),
+    )
 
     # set center of mass
     rotation_center = (0.0,0.0,0.0)
@@ -158,8 +167,8 @@ def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitu
     return A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, B_heave
 
 
-import numpy as np
-from scipy.stats import linregress
+# import numpy as np
+# from scipy.stats import linregress
 
 # def get_cummins_components(body, capytaine_dataset, wave_direction, wave_amplitudes, omegas, seed):
 #     print('Initialising function: get_cummins_components')
@@ -212,7 +221,7 @@ from scipy.stats import linregress
 
 #     return A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot
 
-def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
+def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, b_pto, K_pto, t_span, dt=0.05):
 
     print('Initialising function: solve_cummins_stepwise_no_control')
 
@@ -224,10 +233,9 @@ def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_hea
         'x': [0.0],
         'v': [0.0],
         'F_ex': [F_ex_time(0.0)],
-        'c_pto': [C_pto]
+        'b_pto': [b_pto]
     }
 
-    t_final = t_span[1]
     t_now = 0.0
     x_now = 0.0
     v_now = 0.0
@@ -243,31 +251,37 @@ def solve_cummins_stepwise_no_control(body, A_heave_inf, t_kernel, kernel, K_hea
             k_vals = np.interp(tau, t_kernel, kernel, left=kernel[0], right=0.0)
             memory = np.trapezoid(k_vals * v_arr, t_arr)
             
-            # Correct for current step to prevent lagging damping in high-accel events
+            # correct for current step to prevent lagging damping in high-accel events
             if t > t_arr[-1]:
                 k_t = kernel[0]
                 k_prev = k_vals[-1]
                 memory += 0.5 * (k_prev * v_arr[-1] + k_t * v) * (t - t_arr[-1])
-        dvdt = (F_ex_time(t) - memory - C_pto * v - (K_heave + K_pto) * x) / M_eff
+        dvdt = (F_ex_time(t) - memory - b_pto * v - (K_heave + K_pto) * x) / M_eff # note we didnt use kpto in our project this was legacy and set to zero
         return [v, dvdt]
 
     while t_now < t_final - 1e-10:
         t_next = min(t_now + dt, t_final)
         sol = solve_ivp(rhs, [t_now, t_next], [x_now, v_now], max_step=dt)
 
+        # High resolution recording: capture all internal solve_ivp steps for convolution integral accuracy
+        for i in range(1, len(sol.t)):
+            t_curr = sol.t[i]
+            history['t'].append(t_curr)
+            history['x'].append(sol.y[0, i])
+            history['v'].append(sol.y[1, i])
+            history['F_ex'].append(F_ex_time(t_curr))
+            history['b_pto'].append(b_pto)
+
         t_now = sol.t[-1]
         x_now = sol.y[0, -1]
         v_now = sol.y[1, -1]
 
-        history['t'].append(t_now)
-        history['x'].append(x_now)
-        history['v'].append(v_now)
-        history['F_ex'].append(F_ex_time(t_now))
-        history['c_pto'].append(C_pto)
     return history
 
 
-def solve_cummins_stepwise_no_control_limited(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, C_pto, K_pto, t_span, dt=0.05):
+# note the following adaptation limits the pto force which is more realistic to the real implementaitons possible. 
+# However we found that this was not necessary for our project as the pto force was never the limiting factor.
+def solve_cummins_stepwise_no_control_limited(body, A_heave_inf, t_kernel, kernel, K_heave, F_ex_time, F_ex_time_dot, b_pto, K_pto, t_span, dt=0.05, pto_force_max=np.inf):
 
     print('Initialising function: solve_cummins_stepwise_no_control_limited')
 
@@ -285,10 +299,9 @@ def solve_cummins_stepwise_no_control_limited(body, A_heave_inf, t_kernel, kerne
         'x': [0.0],
         'v': [0.0],
         'F_ex': [F_ex_time(0.0)],
-        'c_pto': [C_pto]
+        'b_pto': [b_pto]
     }
 
-    t_final = t_span[1]
     t_now = 0.0
     x_now = 0.0
     v_now = 0.0
@@ -311,24 +324,32 @@ def solve_cummins_stepwise_no_control_limited(body, A_heave_inf, t_kernel, kerne
                 memory += 0.5 * (k_prev * v_arr[-1] + k_t * v) * (t - t_arr[-1])
             
         hydrostatic_force = K_heave * np.clip(x, -max_displacement, max_displacement)
-        viscous_drag = 0.5 * rho * Cd * A_cross * abs(v) * v
+        # viscous_drag = 0.5 * rho * Cd * A_cross * abs(v) * v
+        viscous_drag = 0.0 # inviscid flow assumption
         
-        dvdt = (F_ex_time(t) - memory - C_pto * v - viscous_drag - hydrostatic_force - K_pto * x) / M_eff
+        # Linear PTO damping with force saturation (clipping)
+        f_pto = np.clip(b_pto * v, -pto_force_max, pto_force_max)
+        
+        dvdt = (F_ex_time(t) - memory - f_pto - viscous_drag - hydrostatic_force - K_pto * x) / M_eff
         return [v, dvdt]
 
     while t_now < t_final - 1e-10:
         t_next = min(t_now + dt, t_final)
         sol = solve_ivp(rhs, [t_now, t_next], [x_now, v_now], max_step=dt)
 
+        # High resolution recording: capture all internal solve_ivp steps for convolution integral accuracy
+        for i in range(1, len(sol.t)):
+            t_curr = sol.t[i]
+            history['t'].append(t_curr)
+            history['x'].append(sol.y[0, i])
+            history['v'].append(sol.y[1, i])
+            history['F_ex'].append(F_ex_time(t_curr))
+            history['b_pto'].append(b_pto)
+
         t_now = sol.t[-1]
         x_now = sol.y[0, -1]
         v_now = sol.y[1, -1]
 
-        history['t'].append(t_now)
-        history['x'].append(x_now)
-        history['v'].append(v_now)
-        history['F_ex'].append(F_ex_time(t_now))
-        history['c_pto'].append(C_pto)
     return history
 
 
@@ -338,7 +359,7 @@ def calc_power_absorbed(history):
 
     t = np.array(history['t'][50:])
     v = np.array(history['v'][50:]) # remove transients
-    c_pto = np.array(history['c_pto'][50:])
+    c_pto = np.array(history['b_pto'][50:])
     # calculate the mean absorved power. not damping was added a force proportional to velcotiy
     # we know that power  = force x velocity 
     # this gives power = constant x velcoity x velocity
@@ -349,5 +370,3 @@ def calc_power_absorbed(history):
     p_mean = np.trapezoid(p_inst, t) / duration if duration > 0 else 0.0
 
     return p_inst, p_mean
-
-

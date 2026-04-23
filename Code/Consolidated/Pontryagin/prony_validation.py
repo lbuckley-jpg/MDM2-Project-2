@@ -7,6 +7,7 @@ Tools to validate that curve_fit found physically valid and accurate Prony coeff
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+import os
 
 
 def validate_prony_coefficients(t_grid, K_data, prony_coeffs, prony_model, 
@@ -282,10 +283,43 @@ def validate_prony_coefficients(t_grid, K_data, prony_coeffs, prony_model,
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
             print(f"\nDiagnostic plots saved to: {save_path}")
         else:
-            plt.savefig('/home/claude/prony_diagnostics.png', dpi=150, bbox_inches='tight')
-            print(f"\nDiagnostic plots saved to: /home/claude/prony_diagnostics.png")
+            plt.savefig('prony_diagnostics.png', dpi=150, bbox_inches='tight')
+            print(f"\nDiagnostic plots saved to: prony_diagnostics.png")
     
     return results, is_valid
+
+
+def plot_prony_relative_error(t_grid, K_data, prony_coeffs, prony_model, 
+                               save_path='prony_relative_error.png'):
+    """
+    Generate a standalone plot of the Prony approximation relative error as a percentage.
+    """
+    K_fitted = prony_model(t_grid, *prony_coeffs.flatten())
+    residuals = K_data - K_fitted
+    
+    # Avoid division by zero by adding a small epsilon
+    rel_error = np.abs(residuals) / (np.abs(K_data) + 1e-10) * 100
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(t_grid, rel_error, color='purple', linewidth=2, label='Relative Error')
+    plt.axhline(y=5, color='orange', linestyle='--', alpha=0.6, label='5% Threshold')
+    plt.axhline(y=10, color='red', linestyle='--', alpha=0.6, label='10% Threshold')
+    
+    plt.xlabel('Time [s]', fontsize=12)
+    plt.ylabel('Relative Error [%]', fontsize=12)
+    plt.title('Prony Approximation Relative Error (%)', fontsize=14)
+    
+    # Set y-axis limit to something reasonable if errors are huge
+    y_max = min(50, np.max(rel_error) * 1.1)
+    if y_max > 0:
+        plt.ylim([0, y_max])
+        
+    plt.grid(True, alpha=0.3, linestyle=':')
+    plt.legend()
+    
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Percentage error plot saved to: {os.path.abspath(save_path)}")
 
 
 def suggest_prony_improvements(validation_results, K_data, t_grid):
